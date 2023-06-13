@@ -1,0 +1,162 @@
+{
+	"info": {
+		"_postman_id": "948c14e3-959b-43e1-91a5-a6e698679fee",
+		"name": "OtusHA",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "/login",
+			"request": {
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "urlencoded",
+					"urlencoded": [
+						{
+							"key": "id",
+							"value": "8c779eca-503b-4e6f-9464-133492f31ade",
+							"type": "default"
+						},
+						{
+							"key": "password",
+							"value": "P@$sw0rd",
+							"type": "default"
+						}
+					],
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "{{proto}}{{host}}/login",
+					"host": [
+						"{{proto}}{{host}}"
+					],
+					"path": [
+						"login"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "/user/register",
+			"request": {
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "urlencoded",
+					"urlencoded": [
+						{
+							"key": "first_name",
+							"value": "Test",
+							"type": "default"
+						},
+						{
+							"key": "second_name",
+							"value": "Testov",
+							"type": "default"
+						},
+						{
+							"key": "sex",
+							"value": "male",
+							"type": "default"
+						},
+						{
+							"key": "birthdate",
+							"value": "01.02.1990",
+							"type": "default"
+						},
+						{
+							"key": "biography",
+							"value": "swimming, chess",
+							"type": "default"
+						},
+						{
+							"key": "city",
+							"value": "Moscow",
+							"type": "default"
+						},
+						{
+							"key": "password",
+							"value": "P@$sw0rd",
+							"type": "default"
+						}
+					]
+				},
+				"url": {
+					"raw": "{{proto}}{{host}}/user/register",
+					"host": [
+						"{{proto}}{{host}}"
+					],
+					"path": [
+						"user",
+						"register"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "user/get/{id}",
+			"protocolProfileBehavior": {
+				"disableBodyPruning": true
+			},
+			"request": {
+				"method": "GET",
+				"header": [],
+				"body": {
+					"mode": "urlencoded",
+					"urlencoded": []
+				},
+				"url": {
+					"raw": "{{proto}}{{host}}/user/get/8c779eca-503b-4e6f-9464-133492f31ade",
+					"host": [
+						"{{proto}}{{host}}"
+					],
+					"path": [
+						"user",
+						"get",
+						"8c779eca-503b-4e6f-9464-133492f31ade"
+					]
+				}
+			},
+			"response": []
+		}
+	],
+	"event": [
+		{
+			"listen": "prerequest",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					""
+				]
+			}
+		},
+		{
+			"listen": "test",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					""
+				]
+			}
+		}
+	],
+	"variable": [
+		{
+			"key": "host",
+			"value": "localhost",
+			"type": "default"
+		},
+		{
+			"key": "proto",
+			"value": "http://",
+			"type": "default"
+		}
+	]
+}
