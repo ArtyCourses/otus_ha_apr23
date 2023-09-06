@@ -1,0 +1,155 @@
+version: '3'
+services:
+  odindb:
+    container_name: pg_odin
+    image: postgres:15.3
+    command:
+      - "postgres"
+      - "-c"
+      - "shared_preload_libraries=pg_stat_statements"
+      - "-c"
+      - "pg_stat_statements.max=10000"
+      - "-c"
+      - "pg_stat_statements.track=all"
+    environment:
+      POSTGRES_DB: "SocialOtus"
+      POSTGRES_USER: "otuspg"
+      POSTGRES_PASSWORD: "learn4otus"
+      PGDATA: "/var/lib/postgresql/data/dbodin"
+    volumes:
+      - ./db/initsql:/docker-entrypoint-initdb.d
+      - ./db:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U otuspg -d SocialOtus"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 4G
+    networks:
+      - otuslab
+
+  tordb:
+    container_name: pg_tor
+    image: postgres:15.3
+    command:
+      - "postgres"
+      - "-c"
+      - "shared_preload_libraries=pg_stat_statements"
+      - "-c"
+      - "pg_stat_statements.max=10000"
+      - "-c"
+      - "pg_stat_statements.track=all"
+    environment:
+      POSTGRES_DB: "SocialOtus"
+      POSTGRES_USER: "otuspg"
+      POSTGRES_PASSWORD: "learn4otus"
+      PGDATA: "/var/lib/postgresql/data/dbtor"
+    volumes:
+      - ./db/initsql:/docker-entrypoint-initdb.d
+      - ./db:/var/lib/postgresql/data
+    ports:
+      - "5433:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U otuspg -d SocialOtus"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 4G
+    networks:
+      - otuslab
+
+  lokidb:
+    container_name: pg_loki
+    image: postgres:15.3
+    command:
+      - "postgres"
+      - "-c"
+      - "shared_preload_libraries=pg_stat_statements"
+      - "-c"
+      - "pg_stat_statements.max=10000"
+      - "-c"
+      - "pg_stat_statements.track=all"
+    environment:
+      POSTGRES_DB: "SocialOtus"
+      POSTGRES_USER: "otuspg"
+      POSTGRES_PASSWORD: "learn4otus"
+      PGDATA: "/var/lib/postgresql/data/dbloki"
+    volumes:
+      - ./db/initsql:/docker-entrypoint-initdb.d
+      - ./db:/var/lib/postgresql/data
+    ports:
+      - "5434:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U otuspg -d SocialOtus"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 4G
+    networks:
+      - otuslab
+
+  pgadmin:
+    container_name: pgadmin_container
+    image: dpage/pgadmin4:7.2
+    environment:
+      PGADMIN_DEFAULT_EMAIL: "no@mail.loc"
+      PGADMIN_DEFAULT_PASSWORD: "pgadmin4otus"
+      PGADMIN_CONFIG_SERVER_MODE: "False"
+    volumes:
+      - ./db/pgadmin:/var/lib/pgadmin
+    ports:
+      - "5050:80"
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 1G
+    networks:
+      - otuslab
+
+  labapp:
+    container_name: otuslab_social
+    build: .
+    ports: 
+      - "80:8080"
+    depends_on:
+      odindb:
+        condition: service_healthy
+      tordb:
+        condition: service_healthy
+    networks:
+      - otuslab
+    environment:
+      APP_M_DBHOST: 'pg_odin'
+      APP_M_DBNAME: 'SocialOtus'
+      APP_M_DBUSER: 'otuspg'
+      APP_M_DBPWD: 'learn4otus'
+      APP_S_DBHOST: 'pg_tor'
+      APP_S_DBNAME: 'SocialOtus'
+      APP_S_DBUSER: 'otuspg'
+      APP_S_DBPWD: 'learn4otus'
+
+networks:
+  otuslab:
+    driver: bridge

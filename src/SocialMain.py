@@ -13,15 +13,24 @@ from fastapi.responses import JSONResponse
 from SocialDB import SocialDB
 from SocialModels import UserLogin
 from SocialModels import UserRegister
+from SocialModels import UserSearch
 
 
 db_master = SocialDB(
-    host= os.environ["APP_DBHOST"],
-    db= os.environ["APP_DBNAME"],
-    user= os.environ["APP_DBUSER"],
-    password= os.environ["APP_DBPWD"]
+    host= os.environ["APP_M_DBHOST"],
+    db= os.environ["APP_M_DBNAME"],
+    user= os.environ["APP_M_DBUSER"],
+    password= os.environ["APP_M_DBPWD"]
 )
 db_master.connect()
+
+db_slave = SocialDB(
+    host= os.environ["APP_S_DBHOST"],
+    db= os.environ["APP_S_DBNAME"],
+    user= os.environ["APP_S_DBUSER"],
+    password= os.environ["APP_S_DBPWD"]
+)
+db_slave.connect()
 
 app = fastapi.FastAPI()
 
@@ -58,14 +67,25 @@ async def post_register(request: Request):
 
 @app.get("/user/get/{userid}")
 def get_userinfo(userid):
-    UserData = db_master.db_getuser(userid)
+    UserData = db_slave.db_getuser(userid)
     if UserData["status"]:
         return UserData["UserInfo"]
     else:
-        if "User not found" in usercheck["errors"]:
+        if "User not found" in UserData["errors"]:
             return JSONResponse(status_code=404, content={"ERROR":"User not found"})            
         else:
             return JSONResponse(status_code=400, content={"ERROR":"Incorrect data"})
+
+@app.get("/user/search",status_code=200)
+async def post_register(request: Request):
+    reqs = request.query_params
+    UserData = UserSearch.parse_obj(dict(reqs))
+    SearchData =  db_slave.db_search(UserData.first_name, UserData.second_name)
+    if SearchData["status"]:
+        return SearchData["finds"]
+    else:
+        return JSONResponse(status_code=400, content={"ERROR":SearchData["errors"]})
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Otus course HA Arch', prog='SocialTest')

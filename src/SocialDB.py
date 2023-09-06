@@ -1,7 +1,7 @@
 import psycopg2
 import json
 from uuid import uuid4, UUID
-from datetime import datetime, timedelta 
+from datetime import datetime,timedelta #,timezone,timedelta
 import time
 import hashlib
 
@@ -32,7 +32,8 @@ class SocialDB:
             host = self._pghost,
             user = self._user,
             password = self._password,
-            database = self._db
+            database = self._db#,
+            #async_ = True,
         )
         self._connection.set_session(autocommit = True)
         self._connected = True
@@ -54,6 +55,10 @@ class SocialDB:
             result["errors"].append("DB not conneted")
             return result
 
+        #
+        #result["status"] = True
+        #result["userid"] = userdata
+        #return result
         #check date
         try:
             if not datetime.now() > datetime.strptime(userdata["birthdate"], "%d.%m.%Y"):
@@ -71,6 +76,7 @@ class SocialDB:
 
         #format value
         UserID = str(uuid4())
+        #registred = time.time()
         registred = datetime.now().strftime("%s")
         salt = F"{UserID}{registred}"
         hashed_pwd = hashlib.pbkdf2_hmac("sha256", userdata["password"].encode(), salt.encode(), 100_000).hex()
@@ -123,6 +129,7 @@ class SocialDB:
             dbu_id = tuser[0][0]
             dbu_pwd = tuser[0][2]
             dbu_reg = tuser[0][3]
+            #checkreg = int(time.mktime(dbu_reg.timetuple())) + dbu_reg.microsecond / 1E6 - time.timezone
             checkreg = int(time.mktime(dbu_reg.timetuple())) - time.timezone
             math = F"{dbu_id}{checkreg}"
             hashed = hashlib.pbkdf2_hmac("sha256", pwd.encode(), math.encode(), 100_000).hex()
@@ -208,3 +215,40 @@ class SocialDB:
             result["status"] = False
             result["errors"].append("User not found")
             return result
+
+    def db_search(self,find_fname, find_sname):
+        result={}
+        result["errors"]=[]
+        
+        if not self._connected:
+            result["status"] = False
+            result["errors"].append("DB not conneted")
+            return result
+
+        formated_query= {
+            "fname": find_fname+"%",
+            "fsurname": find_sname+"%",
+        }
+
+        self.cursor.execute("select userid, name, surname, sex, birthdate, biography, city from usersdata where name LIKE %(fname)s and surname LIKE %(fsurname)s order by userid;",formated_query)
+        fusers = self.cursor.fetchall()
+        if len(fusers) == 0:
+            result["status"] = False
+            result["errors"].append("Not found")
+            return result
+        finds = []
+        for t_user in fusers:
+            userinfo = {
+                        "id" : t_user[0],
+                        "first_name" : t_user[1],
+                        "second_name": t_user[2],
+                        "sex": t_user[3],
+                        "birthdate":datetime.strftime(t_user[4],"%d.%m.%Y"),
+                        "biography": t_user[5],
+                        "city": t_user[6]
+                    }
+            finds.append(userinfo)
+        
+        result["status"] = True
+        result["finds"] = finds
+        return result

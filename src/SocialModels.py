@@ -15,5 +15,8 @@ class UserRegister(BaseModel):
     city: str
     password: str
 
+class UserSearch(BaseModel):
+    first_name: str
+    second_name: str
 
 
