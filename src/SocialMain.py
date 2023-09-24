@@ -17,20 +17,17 @@ from SocialModels import UserSearch
 
 
 db_master = SocialDB(
-    host= os.environ["APP_M_DBHOST"],
-    db= os.environ["APP_M_DBNAME"],
-    user= os.environ["APP_M_DBUSER"],
-    password= os.environ["APP_M_DBPWD"]
-)
+    dbhost = os.environ["APP_M_DBHOST"],
+    dbuser = os.environ["APP_M_DBUSER"],
+    dbpassword = os.environ["APP_M_DBPWD"],
+    dbname = os.environ["APP_M_DBNAME"],
+    cachehost = os.environ["APP_M_CHOST"],
+    cacheport = os.environ["APP_M_CPORT"],
+    cacheuser = os.environ["APP_M_CUSER"],
+    chachepwd = os.environ["APP_M_CPWD"]
+    )
 db_master.connect()
 
-db_slave = SocialDB(
-    host= os.environ["APP_S_DBHOST"],
-    db= os.environ["APP_S_DBNAME"],
-    user= os.environ["APP_S_DBUSER"],
-    password= os.environ["APP_S_DBPWD"]
-)
-db_slave.connect()
 
 app = fastapi.FastAPI()
 
@@ -67,7 +64,8 @@ async def post_register(request: Request):
 
 @app.get("/user/get/{userid}")
 def get_userinfo(userid):
-    UserData = db_slave.db_getuser(userid)
+    #UserData = db_slave.db_getuser(userid)
+    UserData = db_master.db_getuser(userid)
     if UserData["status"]:
         return UserData["UserInfo"]
     else:
@@ -80,12 +78,146 @@ def get_userinfo(userid):
 async def post_register(request: Request):
     reqs = request.query_params
     UserData = UserSearch.parse_obj(dict(reqs))
-    SearchData =  db_slave.db_search(UserData.first_name, UserData.second_name)
+    #SearchData =  db_slave.db_search(UserData.first_name, UserData.second_name)
+    SearchData =  db_master.db_search(UserData.first_name, UserData.second_name)
     if SearchData["status"]:
         return SearchData["finds"]
     else:
         return JSONResponse(status_code=400, content={"ERROR":SearchData["errors"]})
 
+
+@app.put("/friend/add/{userid}")
+async def put_friend_add(userid, request: Request):
+    headers = request.headers
+    if "Authorization" in headers:
+        session = request.headers['Authorization']
+        auth = db_master.db_check_session(session)
+        if auth["status"]:
+            fadd = db_master.db_friend_add(auth["userid"],userid)
+            if fadd["status"]:
+                return "Пользователь успешно указал своего друга"
+            else:
+                return JSONResponse(status_code=400, content={"ERROR":fadd["errors"]})
+        else:
+            return JSONResponse(status_code=401, content={"ERROR":auth["errors"]})
+    else:
+        return JSONResponse(status_code=401, content={"ERROR":"Not authorized"})
+
+@app.put("/friend/delete/{userid}")
+async def put_friend_del(userid, request: Request):
+    headers = request.headers
+    if "Authorization" in headers:
+        session = request.headers['Authorization']
+        auth = db_master.db_check_session(session)
+        if auth["status"]:
+            fdel = db_master.db_friend_del(auth["userid"],userid)
+            if fdel["status"]:
+                return "Пользователь успешно удалил из друзей пользователя"
+            else:
+                return JSONResponse(status_code=400, content={"ERROR":fdel["errors"]})
+        else:
+            return JSONResponse(status_code=401, content={"ERROR":auth["errors"]})
+    else:
+        return JSONResponse(status_code=401, content={"ERROR":"Not authorized"})
+
+@app.post("/post/create", status_code=200)
+async def post_posts_create(request: Request):
+    headers = request.headers
+    raw_body = await request.body()
+    try:
+        content = json.loads(raw_body)
+        if 'text' not in content:
+            raise json.decoder.JSONDecodeError("wrong post model","post data",1)
+    except json.decoder.JSONDecodeError:
+        return JSONResponse(status_code=400, content={"ERROR":F"Invalid request format, need valid post model"})
+    if "Authorization" in headers:
+        session = headers['Authorization']
+        auth = db_master.db_check_session(session)
+        if auth["status"]:
+            fpost = db_master.db_posts_create(auth["userid"],content['text'])
+            if fpost["status"]:
+                return fpost['postid']
+            else:
+                return JSONResponse(status_code=400, content={"ERROR":fpost["errors"]})
+        else:
+            return JSONResponse(status_code=401, content={"ERROR":auth["errors"]})
+    else:
+        return JSONResponse(status_code=401, content={"ERROR":"Not authorized"})
+
+@app.get("/post/get/{postid}", status_code=200)
+async def get_posts_read(postid):
+    gpost = db_master.db_posts_read(postid)
+    if gpost["status"]:
+        return gpost['content']
+    else:
+        return JSONResponse(status_code=400, content={"ERROR":gpost["errors"]})
+
+@app.put("/post/update", status_code=200)
+async def put_posts_update(request: Request):
+    headers = request.headers
+    raw_body = await request.body()
+    try:
+        content = json.loads(raw_body)
+        if ('text' not in content) or ('id' not in content):
+            raise json.decoder.JSONDecodeError("wrong post model","post data",1)
+    except json.decoder.JSONDecodeError:
+        return JSONResponse(status_code=400, content={"ERROR":F"Invalid request format, need valid post model"})
+    if "Authorization" in headers:
+        session = headers['Authorization']
+        auth = db_master.db_check_session(session)
+        if auth["status"]:
+            fpost = db_master.db_posts_update(auth["userid"], content['text'], content['id'])
+            if fpost["status"]:
+                return fpost['postid']
+            else:
+                return JSONResponse(status_code=400, content={"ERROR":fpost["errors"]})
+        else:
+            return JSONResponse(status_code=401, content={"ERROR":auth["errors"]})
+    else:
+        return JSONResponse(status_code=401, content={"ERROR":"Not authorized"})
+
+@app.put("/post/delete/{postid}", status_code=200)
+async def put_posts_delete(postid, request: Request):
+    headers = request.headers
+    if "Authorization" in headers:
+        session = headers['Authorization']
+        auth = db_master.db_check_session(session)
+        if auth["status"]:
+            fpost = db_master.db_posts_delete(postid)
+            if fpost["status"]:
+                return "Deleted"
+            else:
+                return JSONResponse(status_code=400, content={"ERROR":fpost["errors"]})
+        else:
+            return JSONResponse(status_code=401, content={"ERROR":auth["errors"]})
+    else:
+        return JSONResponse(status_code=401, content={"ERROR":"Not authorized"})
+
+@app.get("/post/feed", status_code=200)
+async def get_posts_feed(request: Request):
+    headers = request.headers
+    feed_par = dict(request.query_params)
+    fOffset = 0
+    if 'offset' in feed_par:
+        if feed_par['offset'].isdigit():
+            fOffset = feed_par['offset']
+    fLimit = 10
+    if 'limit' in feed_par:
+        if feed_par['limit'].isdigit():
+            fLimit = feed_par['limit']
+    if "Authorization" in headers:
+        session = headers['Authorization']
+        auth = db_master.db_check_session(session)
+        if auth["status"]:
+            gfeed = db_master.cache_postsfeed(auth["userid"],fOffset,fLimit)
+            if gfeed["status"]:
+                return gfeed["feed"]
+            else:
+                return JSONResponse(status_code=400, content={"ERROR":gfeed["errors"]})
+        else:
+            return JSONResponse(status_code=401, content={"ERROR":auth["errors"]})
+    else:
+        return JSONResponse(status_code=401, content={"ERROR":"Not authorized"})
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Otus course HA Arch', prog='SocialTest')

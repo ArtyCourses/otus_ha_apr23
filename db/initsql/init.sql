@@ -9,6 +9,12 @@ CREATE TABLE IF NOT EXISTS public.sessions
     CONSTRAINT sessions_pkey PRIMARY KEY (id)
 );
 
+CREATE TABLE IF NOT EXISTS public.friendships
+(
+    userid uuid NOT NULL,
+    friendid uuid NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS public.users
 (
     id uuid NOT NULL,
@@ -18,6 +24,29 @@ CREATE TABLE IF NOT EXISTS public.users
     CONSTRAINT users_pkey PRIMARY KEY (id),
     CONSTRAINT users_login_key UNIQUE (login)
 );
+
+CREATE TABLE IF NOT EXISTS public.posts
+(
+    id uuid NOT NULL,
+	author_userid uuid NOT NULL,
+    content text COLLATE pg_catalog."default",
+    post_date timestamp without time zone,
+    CONSTRAINT posts_pkey PRIMARY KEY (id),
+    CONSTRAINT fk_users_to_posts FOREIGN KEY (author_userid)
+        REFERENCES public.users (id) MATCH SIMPLE
+        ON UPDATE NO ACTION
+        ON DELETE NO ACTION
+);
+
+CREATE INDEX IF NOT EXISTS search_posts_by_author
+    ON public.posts USING btree
+    (author_userid ASC NULLS LAST)
+    TABLESPACE pg_default;
+
+CREATE INDEX IF NOT EXISTS sort_posts_by_date
+    ON public.posts USING btree
+    (post_date DESC NULLS LAST)
+    TABLESPACE pg_default;
 
 CREATE TABLE IF NOT EXISTS public.usersdata
 (
@@ -30,6 +59,11 @@ CREATE TABLE IF NOT EXISTS public.usersdata
     birthdate date,
     CONSTRAINT usersdata_pkey PRIMARY KEY (userid)
 );
+
+CREATE INDEX IF NOT EXISTS search_user
+    ON public.usersdata USING btree
+    (name COLLATE pg_catalog."default" ASC NULLS LAST, surname COLLATE pg_catalog."default" ASC NULLS LAST)
+    TABLESPACE pg_default;
 
 ALTER TABLE IF EXISTS public.sessions
     ADD CONSTRAINT fk_users_to_sessions FOREIGN KEY (userid)

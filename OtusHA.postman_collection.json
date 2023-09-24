@@ -1,6 +1,6 @@
 {
 	"info": {
-		"_postman_id": "948c14e3-959b-43e1-91a5-a6e698679fee",
+		"_postman_id": "",
 		"name": "OtusHA",
 		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
 	},
@@ -15,12 +15,12 @@
 					"urlencoded": [
 						{
 							"key": "id",
-							"value": "8c779eca-503b-4e6f-9464-133492f31ade",
+							"value": "",
 							"type": "default"
 						},
 						{
 							"key": "password",
-							"value": "P@$sw0rd",
+							"value": "",
 							"type": "default"
 						}
 					],
@@ -101,6 +101,34 @@
 			"response": []
 		},
 		{
+			"name": "user/search",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{proto}}{{host}}/user/search?first_name=Иванов&second_name=Антон",
+					"host": [
+						"{{proto}}{{host}}"
+					],
+					"path": [
+						"user",
+						"search"
+					],
+					"query": [
+						{
+							"key": "first_name",
+							"value": "Иванов"
+						},
+						{
+							"key": "second_name",
+							"value": "Антон"
+						}
+					]
+				}
+			},
+			"response": []
+		},
+		{
 			"name": "user/get/{id}",
 			"protocolProfileBehavior": {
 				"disableBodyPruning": true
@@ -121,6 +149,251 @@
 						"user",
 						"get",
 						"8c779eca-503b-4e6f-9464-133492f31ade"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "friend_add",
+			"request": {
+				"auth": {
+					"type": "bearer",
+					"bearer": [
+						{
+							"key": "token",
+							"value": "5cdf0e50-e107-482a-98a3-c1054cb39f5c",
+							"type": "string"
+						}
+					]
+				},
+				"method": "PUT",
+				"header": [],
+				"body": {
+					"mode": "urlencoded",
+					"urlencoded": []
+				},
+				"url": {
+					"raw": "{{proto}}{{host}}/friend/add/8eb54d56-15eb-4305-a2e2-c2d09ababe8f",
+					"host": [
+						"{{proto}}{{host}}"
+					],
+					"path": [
+						"friend",
+						"add",
+						"8eb54d56-15eb-4305-a2e2-c2d09ababe8f"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "friend_delete",
+			"request": {
+				"auth": {
+					"type": "bearer",
+					"bearer": [
+						{
+							"key": "token",
+							"value": "5cdf0e50-e107-482a-98a3-c1054cb39f5c",
+							"type": "string"
+						}
+					]
+				},
+				"method": "PUT",
+				"header": [],
+				"body": {
+					"mode": "urlencoded",
+					"urlencoded": []
+				},
+				"url": {
+					"raw": "{{proto}}{{host}}/friend/delete/8eb54d56-15eb-4305-a2e2-c2d09ababe8f",
+					"host": [
+						"{{proto}}{{host}}"
+					],
+					"path": [
+						"friend",
+						"delete",
+						"8eb54d56-15eb-4305-a2e2-c2d09ababe8f"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "/post/create",
+			"request": {
+				"auth": {
+					"type": "bearer",
+					"bearer": [
+						{
+							"key": "token",
+							"value": "1",
+							"type": "string"
+						}
+					]
+				},
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "raw",
+					"raw": "{\r\n    \"text\": \"Изначальный пост Абрамовой Вероники\"\r\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "{{proto}}{{host}}/post/create",
+					"host": [
+						"{{proto}}{{host}}"
+					],
+					"path": [
+						"post",
+						"create"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "/post/update",
+			"request": {
+				"auth": {
+					"type": "bearer",
+					"bearer": [
+						{
+							"key": "token",
+							"value": "1",
+							"type": "string"
+						}
+					]
+				},
+				"method": "PUT",
+				"header": [],
+				"body": {
+					"mode": "raw",
+					"raw": "{\r\n    \"id\": \"c82797a5-2fbc-4873-89d3-f9e5b2f1f279\",\r\n    \"text\": \"Обновленный пост Абрамовой Вероники\"\r\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "{{proto}}{{host}}/post/update",
+					"host": [
+						"{{proto}}{{host}}"
+					],
+					"path": [
+						"post",
+						"update"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "/post/delete",
+			"request": {
+				"auth": {
+					"type": "bearer",
+					"bearer": [
+						{
+							"key": "token",
+							"value": "1",
+							"type": "string"
+						}
+					]
+				},
+				"method": "PUT",
+				"header": [],
+				"body": {
+					"mode": "raw",
+					"raw": "{\r\n    \"id\": \"a07a59c0-ef15-452b-a2f9-4dcd0e816be6\",\r\n    \"text\": \"Обновленный пост Абрамовой Вероники\"\r\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "{{proto}}{{host}}/post/delete/a07a59c0-ef15-452b-a2f9-4dcd0e816be6",
+					"host": [
+						"{{proto}}{{host}}"
+					],
+					"path": [
+						"post",
+						"delete",
+						"a07a59c0-ef15-452b-a2f9-4dcd0e816be6"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "/post/get",
+			"request": {
+				"auth": {
+					"type": "bearer",
+					"bearer": [
+						{
+							"key": "token",
+							"value": "1",
+							"type": "string"
+						}
+					]
+				},
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{proto}}{{host}}/post/get/c82797a5-2fbc-4873-89d3-f9e5b2f1f279",
+					"host": [
+						"{{proto}}{{host}}"
+					],
+					"path": [
+						"post",
+						"get",
+						"c82797a5-2fbc-4873-89d3-f9e5b2f1f279"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "/post/feed",
+			"request": {
+				"auth": {
+					"type": "bearer",
+					"bearer": [
+						{
+							"key": "token",
+							"value": "1",
+							"type": "string"
+						}
+					]
+				},
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{proto}}{{host}}/post/feed?offset=0&limit=50",
+					"host": [
+						"{{proto}}{{host}}"
+					],
+					"path": [
+						"post",
+						"feed"
+					],
+					"query": [
+						{
+							"key": "offset",
+							"value": "0"
+						},
+						{
+							"key": "limit",
+							"value": "50"
+						}
 					]
 				}
 			},

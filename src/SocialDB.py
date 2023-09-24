@@ -4,45 +4,69 @@ from uuid import uuid4, UUID
 from datetime import datetime,timedelta #,timezone,timedelta
 import time
 import hashlib
+import tarantool
 
 class SocialDB:
     "DB class for OTUS Laerning project Social"
     _pghost = None
     _db = None
+    _chost = None
+    _cport = None
+    _cuser = None
+    _cpwd = None
     _user = None
     _password = None
-    _connected = False
+    _dbconnected = False
+    _cacheconnected = False
     _connection = None
     cursor = None
+    cache = None
+    cache_posts = None
+    cache_feeds = None
 
-    def __init__(self, host, user, password, db):
-        self._pghost = host
-        self._db = db
-        self._user = user
-        self._password = password
+    def __init__(self, dbhost, dbuser, dbpassword, dbname, cachehost, cacheport, cacheuser, chachepwd):
+        self._pghost = dbhost
+        self._db = dbname
+        self._user = dbuser
+        self._password = dbpassword
+        self._chost = cachehost
+        self._cport = cacheport
+        self._cuser = cacheuser
+        self._cpwd = chachepwd
 
     def __del__(self):
-        if self._connected:
+        if self._dbconnected or self._cacheconnected:
             self.disconnect()
 
     def connect(self):
-        if self._connected:
+        if self._dbconnected and self._cacheconnected:
             return
-        self._connection = psycopg2.connect(
-            host = self._pghost,
-            user = self._user,
-            password = self._password,
-            database = self._db#,
-            #async_ = True,
-        )
-        self._connection.set_session(autocommit = True)
-        self._connected = True
-        self.cursor = self._connection.cursor()
+        if not self._dbconnected:
+            self._connection = psycopg2.connect(
+                host = self._pghost,
+                user = self._user,
+                password = self._password,
+                database = self._db#,
+                #async_ = True,
+            )
+            self._connection.set_session(autocommit = True)
+            self._dbconnected = True
+            self.cursor = self._connection.cursor()
+        if not self._cacheconnected:
+            self.cache = tarantool.connect(
+                host = self._chost, 
+                port = self._cport, 
+                user = self._cuser,
+                password = self._cpwd
+                )
+            self._cacheconnected = True
+            self.cache_posts = self.cache.space('post_cache')
+            self.cache_feeds = self.cache.space('feed_cache')
 
     def disconnect(self):
-        if not self._connected:
+        if not self._dbconnected:
             return
-        self._connected = False
+        self._dbconnected = False
         self.cursor.close()
         self._connection.close()
 
@@ -50,7 +74,7 @@ class SocialDB:
         result={}
         result["errors"]=[]
         
-        if not self._connected:
+        if not self._dbconnected:
             result["status"] = False
             result["errors"].append("DB not conneted")
             return result
@@ -110,7 +134,7 @@ class SocialDB:
         result={}
         result["errors"]=[]
         
-        if not self._connected:
+        if not self._dbconnected:
             result["status"] = False
             result["errors"].append("DB not conneted")
             return result
@@ -152,7 +176,7 @@ class SocialDB:
     def db_create_session(self, login):
         result={}
         result["errors"]=[]
-        if not self._connected:
+        if not self._dbconnected:
             result["status"] = False
             result["errors"].append("DB not conneted")
             return result
@@ -181,7 +205,7 @@ class SocialDB:
     def db_getuser(self,login):
         result={}
         result["errors"]=[]
-        if not self._connected:
+        if not self._dbconnected:
             result["status"] = False
             result["errors"].append("DB not conneted")
             return result
@@ -220,7 +244,7 @@ class SocialDB:
         result={}
         result["errors"]=[]
         
-        if not self._connected:
+        if not self._dbconnected:
             result["status"] = False
             result["errors"].append("DB not conneted")
             return result
@@ -252,3 +276,279 @@ class SocialDB:
         result["status"] = True
         result["finds"] = finds
         return result
+
+    def db_check_session(self, sessionid):
+        result={}
+        result["errors"]=[]
+        if not self._dbconnected:
+            result["status"] = False
+            result["errors"].append("DB not conneted")
+            return result
+        #check
+        ses_id = sessionid.split(' ')[1]
+        b_type = sessionid.split(' ')[0]
+        if b_type != 'Bearer':
+            result["status"] = False
+            result["errors"].append("Incorect auth type")
+            return result
+        try:
+            uuid_valid = UUID(ses_id, version=4)
+        except ValueError:
+            result["status"] = False
+            result["errors"].append("Incorect session format")
+            print(ses_id)
+            return result
+        
+        self.cursor.execute("select id, userid, started, expired from sessions where id = %(id)s;",{'id':ses_id})
+        sesinfo = self.cursor.fetchall()
+        if len(sesinfo) == 1:
+            startat = int(time.mktime(sesinfo[0][2].timetuple())) - time.timezone
+            expire = int(time.mktime(sesinfo[0][3].timetuple())) - time.timezone
+            t_now = time.time()
+            if startat > t_now:
+                result["status"] = False
+                result["errors"].append("Used before session start")
+                return result
+            if expire  < t_now:
+                result["status"] = False
+                result["errors"].append("Session expired")
+                return result
+            result["status"] = True
+            result["userid"] = sesinfo[0][1]
+            return result
+        else:
+            result["status"] = False
+            result["errors"].append("Session not found")
+            return result
+
+    def db_friend_add(self,selfid,friendid):
+        result={}
+        result["errors"]=[]    
+        if not self._dbconnected:
+            result["status"] = False
+            result["errors"].append("DB not conneted")
+            return result
+        try:
+            uuid_valid = UUID(selfid, version=4)
+            uuid_valid = UUID(friendid, version=4)
+        except ValueError:
+            result["status"] = False
+            result["errors"].append("Incorect id format")
+            return result
+        formated_q = {
+            "u_id": selfid,
+            "f_id": friendid
+        }
+        self.cursor.execute("select * from friendships where userid = %(u_id)s and friendid = %(f_id)s",formated_q)
+        chf = self.cursor.fetchall()
+        if len(chf) == 0:
+            self.cursor.execute("insert into friendships (userid,friendid) VALUES (%(u_id)s,%(f_id)s);",formated_q)
+            result["status"] = True
+            return result   
+        else:
+            result["status"] = False
+            result["errors"].append("frienship already exist")
+            return result
+                
+    def db_friend_del(self,selfid,friendid):
+        result={}
+        result["errors"]=[]
+        
+        if not self._dbconnected:
+            result["status"] = False
+            result["errors"].append("DB not conneted")
+            return result
+
+        try:
+            uuid_valid = UUID(selfid, version=4)
+            uuid_valid = UUID(friendid, version=4)
+        except ValueError:
+            result["status"] = False
+            result["errors"].append("Incorect id format")
+            return result
+        formated_q = {
+            "u_id": selfid,
+            "f_id": friendid
+        }
+        self.cursor.execute("select * from friendships where userid = %(u_id)s and friendid = %(f_id)s",formated_q)
+        chf = self.cursor.fetchall()
+        if len(chf) == 1:
+            self.cursor.execute("delete from friendships where userid = %(u_id)s and friendid = %(f_id)s",formated_q)
+            result["status"] = True
+            return result    
+        elif len(chf) == 0:
+            result["status"] = False
+            result["errors"].append("Friendship not exist")
+            return result
+        else:
+            result["status"] = False
+            result["errors"].append("DB Error friendship not unique")
+            return result
+
+    def db_posts_create(self,selfid,posttext):
+        result={}
+        result["errors"]=[]    
+        if not self._dbconnected or not self._cacheconnected:
+            result["status"] = False
+            result["errors"].append("DB not conneted")
+            return result
+        try:
+            uuid_valid = UUID(selfid, version=4)
+        except ValueError:
+            result["status"] = False
+            result["errors"].append("Incorect id format")
+            return result
+        formated_q = {
+            "p_id": str(uuid4()),
+            "u_id": selfid,
+            "post": posttext,
+            "p_date": int(time.time())
+        }
+        #self.cursor.execute("insert into posts (id, author_userid, content, post_date) VALUES (%(p_id)s,%(u_id)s,%(post)s,to_timestamp(%(p_date)s));",formated_q)
+        self.cursor.execute("insert into posts (id, author_userid, content, post_date) VALUES (%(p_id)s,%(u_id)s,%(post)s,%(p_date)s);",formated_q)
+        result["status"] = True
+        result["postid"] = formated_q["p_id"]
+
+        #add post to followers feed
+        self.cursor.execute("select userid from friendships where friendid = %(u_id)s;",{"u_id":selfid})
+        updfeed = self.cursor.fetchall()
+        if len(updfeed) > 0:
+            for follower in updfeed:
+                self.cache.call('add_postfeed',(follower,formated_q["p_id"]))
+        result["status"] = True
+        result["postid"] = formated_q["p_id"]
+        return result      
+        
+    def db_posts_read(self,postid):
+        result={}
+        result["errors"]=[]    
+        if not self._dbconnected:
+            result["status"] = False
+            result["errors"].append("DB not conneted")
+            return result
+        try:
+            uuid_valid = UUID(postid, version=4)
+        except ValueError:
+            result["status"] = False
+            result["errors"].append("Incorect id format")
+            return result
+        formated_q = {
+            "p_id": postid,
+        }
+        self.cursor.execute("select id, author_userid, content, post_date from posts where id = %(p_id)s;",formated_q)
+        ch_post = self.cursor.fetchall()
+        if len(ch_post) == 1:
+            result["status"] = True
+            result["content"] = {
+                "id": ch_post[0][0],
+                "text": ch_post[0][2],
+                "author_user_id": ch_post[0][1],
+                "created": int(time.mktime(ch_post[0][3].timetuple())) - time.timezone
+            }
+            return result
+        elif len(ch_post) == 0:
+            result["status"] = False
+            result["errors"].append("Post not found")
+            return result
+        else:
+            result["status"] = False
+            result["errors"].append("DB Error post id not unique")
+            return result
+  
+    def db_posts_update(self,selfid,posttext,postid):
+        result={}
+        result["errors"]=[]    
+        if not self._dbconnected or not self._cacheconnected:
+            result["status"] = False
+            result["errors"].append("DB not conneted")
+            return result
+        try:
+            uuid_valid = UUID(selfid, version=4)
+            uuid_valid = UUID(postid, version=4)
+        except ValueError:
+            result["status"] = False
+            result["errors"].append("Incorect id format")
+            return result
+        formated_q = {
+            "p_id": postid,
+            "u_id": selfid,
+            "post": posttext
+        }
+        self.cursor.execute("select author_userid from posts where id = %(p_id)s;",{"p_id": postid})
+        ch_post = self.cursor.fetchall()
+        if len(ch_post) == 1:
+            if ch_post[0][0] == selfid:
+                self.cursor.execute("update posts set content = %(post)s where id = %(p_id)s;",formated_q)
+                result["status"] = True
+                result["postid"] = formated_q["p_id"]
+                #update_cachepost
+                self.cache.call('update_cachepost',(result["postid"]))
+                return result
+            else:
+                result["status"] = False
+                result["errors"].append("Only author can edit post")
+                return result                
+        elif len(ch_post) == 0:
+            result["status"] = False
+            result["errors"].append("Friendship not exist")
+            return result
+        else:
+            result["status"] = False
+            result["errors"].append("DB Error friendship not unique")
+            return result
+           
+    def db_posts_delete(self,postid):
+        result={}
+        result["errors"]=[]    
+        if not self._dbconnected:
+            result["status"] = False
+            result["errors"].append("DB not conneted")
+            return result
+        try:
+            uuid_valid = UUID(postid, version=4)
+        except ValueError:
+            result["status"] = False
+            result["errors"].append("Incorect id format")
+            return result
+        formated_q = {
+            "p_id": postid,
+        }
+        self.cursor.execute("select id from posts where id = %(p_id)s;",formated_q)
+        сh_post = self.cursor.fetchall()
+        if len(сh_post) == 1:
+            self.cursor.execute("delete from posts where id = %(p_id)s;",formated_q)
+            result["status"] = True
+            return result
+        elif len(сh_post) == 0:
+            result["status"] = False
+            result["errors"].append("Post not found")
+            return result
+        else:
+            result["status"] = False
+            result["errors"].append("DB Error post id not unique")
+            return result
+
+    def cache_postsfeed(self,userid,offset,limit):
+        result={}
+        result["errors"]=[]    
+        if not self._dbconnected:
+            result["status"] = False
+            result["errors"].append("DB not conneted")
+            return result
+        try:
+            uuid_valid = UUID(userid, version=4)
+        except ValueError:
+            result["status"] = False
+            result["errors"].append("Incorect id format")
+            return result
+        
+        userfeed = []
+        user_feed = self.cache.call('get_feed',(userid,int(limit),int(offset)))
+        for tpost in user_feed[0]:
+            jpost = json.loads(tpost)
+            jpost['created'] = datetime.fromtimestamp(jpost['created']).strftime("%Y-%m-%d %H:%M:%S")
+            userfeed.append(jpost)
+
+        result["status"] = True
+        result["feed"] = userfeed 
+        return result             
