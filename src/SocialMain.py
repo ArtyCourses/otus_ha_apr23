@@ -11,6 +11,7 @@ from fastapi import Form, FastAPI, Request, status, HTTPException
 from fastapi.responses import JSONResponse
 
 from SocialDB import SocialDB
+from SocialDB import ShardDB
 from SocialModels import UserLogin
 from SocialModels import UserRegister
 from SocialModels import UserSearch
@@ -18,6 +19,7 @@ from SocialModels import UserSearch
 
 db_master = SocialDB(
     dbhost = os.environ["APP_M_DBHOST"],
+    dbport = os.environ["APP_M_DBPORT"],
     dbuser = os.environ["APP_M_DBUSER"],
     dbpassword = os.environ["APP_M_DBPWD"],
     dbname = os.environ["APP_M_DBNAME"],
@@ -28,6 +30,14 @@ db_master = SocialDB(
     )
 db_master.connect()
 
+db_shard = ShardDB(
+    dbhost = os.environ["APP_M_SHARDDB"],
+    dbport = os.environ["APP_M_SHARDPORT"],
+    dbuser = os.environ["APP_M_DBUSER"],
+    dbpassword = os.environ["APP_M_DBPWD"],
+    dbname = os.environ["APP_M_DBNAME"],
+)
+db_shard.connect()
 
 app = fastapi.FastAPI()
 
@@ -214,6 +224,48 @@ async def get_posts_feed(request: Request):
                 return gfeed["feed"]
             else:
                 return JSONResponse(status_code=400, content={"ERROR":gfeed["errors"]})
+        else:
+            return JSONResponse(status_code=401, content={"ERROR":auth["errors"]})
+    else:
+        return JSONResponse(status_code=401, content={"ERROR":"Not authorized"})
+
+@app.post("/dialog/{userid}/send", status_code=200)
+async def post_dialog_send(userid, request: Request):
+    headers = request.headers
+    raw_body = await request.body()
+    try:
+        content = json.loads(raw_body)
+        if 'text' not in content:
+            raise json.decoder.JSONDecodeError("wrong dialog error model","post data",1)
+    except json.decoder.JSONDecodeError:
+        return JSONResponse(status_code=400, content={"ERROR":F"Invalid request format, need valid post model"})
+    if "Authorization" in headers:
+        session = headers['Authorization']
+        auth = db_master.db_check_session(session)
+        if auth["status"]:
+            fpost = db_shard.db_dialogs_send(auth["userid"], userid, content['text'])
+            if fpost["status"]:
+                return fpost['dialogid']
+            else:
+                return JSONResponse(status_code=400, content={"ERROR":fpost["errors"]})
+        else:
+            return JSONResponse(status_code=401, content={"ERROR":auth["errors"]})
+    else:
+        return JSONResponse(status_code=401, content={"ERROR":"Not authorized"})
+
+@app.get("/dialog/{userid}/list", status_code=200)
+async def get_dialog_list(userid, request: Request):
+    headers = request.headers
+    raw_body = await request.body()
+    if "Authorization" in headers:
+        session = headers['Authorization']
+        auth = db_master.db_check_session(session)
+        if auth["status"]:
+            fpost = db_shard.db_dialogs_list(auth["userid"], userid)
+            if fpost["status"]:
+                return fpost['dialog_content']
+            else:
+                return JSONResponse(status_code=400, content={"ERROR":fpost["errors"]})
         else:
             return JSONResponse(status_code=401, content={"ERROR":auth["errors"]})
     else:

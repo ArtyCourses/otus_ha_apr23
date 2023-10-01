@@ -9,6 +9,7 @@ import tarantool
 class SocialDB:
     "DB class for OTUS Laerning project Social"
     _pghost = None
+    _pgport = None
     _db = None
     _chost = None
     _cport = None
@@ -24,8 +25,9 @@ class SocialDB:
     cache_posts = None
     cache_feeds = None
 
-    def __init__(self, dbhost, dbuser, dbpassword, dbname, cachehost, cacheport, cacheuser, chachepwd):
+    def __init__(self, dbhost, dbport, dbuser, dbpassword, dbname, cachehost, cacheport, cacheuser, chachepwd):
         self._pghost = dbhost
+        self._pgport = dbport
         self._db = dbname
         self._user = dbuser
         self._password = dbpassword
@@ -44,6 +46,7 @@ class SocialDB:
         if not self._dbconnected:
             self._connection = psycopg2.connect(
                 host = self._pghost,
+                port = self._pgport,
                 user = self._user,
                 password = self._password,
                 database = self._db#,
@@ -415,8 +418,7 @@ class SocialDB:
         if len(updfeed) > 0:
             for follower in updfeed:
                 self.cache.call('add_postfeed',(follower,formated_q["p_id"]))
-        result["status"] = True
-        result["postid"] = formated_q["p_id"]
+
         return result      
         
     def db_posts_read(self,postid):
@@ -546,9 +548,124 @@ class SocialDB:
         user_feed = self.cache.call('get_feed',(userid,int(limit),int(offset)))
         for tpost in user_feed[0]:
             jpost = json.loads(tpost)
-            jpost['created'] = datetime.fromtimestamp(jpost['created']).strftime("%Y-%m-%d %H:%M:%S")
+            jpost['created'] = datetime.fromtimestamp(jpost['created']).strftime("%H:%M:%S %d.%m.%Y")
             userfeed.append(jpost)
 
         result["status"] = True
         result["feed"] = userfeed 
-        return result             
+        return result
+
+class ShardDB:
+    _pghost = None
+    _pgport = None
+    _db = None
+    _user = None
+    _password = None
+    _dbconnected = False
+    _connection = None
+    cursor = None
+
+    def __init__(self, dbhost, dbport, dbuser, dbpassword, dbname):
+        self._pghost = dbhost
+        self._pgport = dbport
+        self._db = dbname
+        self._user = dbuser
+        self._password = dbpassword
+
+    def __del__(self):
+        if self._dbconnected:
+            self.disconnect()
+
+    def connect(self):
+        if self._dbconnected:
+            return
+        if not self._dbconnected:
+            self._connection = psycopg2.connect(
+                host = self._pghost,
+                user = self._user,
+                password = self._password,
+                database = self._db,
+                port = self._pgport #,
+                #async_ = True,
+            )
+            self._connection.set_session(autocommit = True)
+            self._dbconnected = True
+            self.cursor = self._connection.cursor()
+
+    def disconnect(self):
+        if not self._dbconnected:
+            return
+        self._dbconnected = False
+        self.cursor.close()
+        self._connection.close()
+
+    def gen_dialogid(self, sender, recipient):
+        if sender > recipient:
+            d_id = sender + '-' + recipient
+        else:
+            d_id = recipient + '-' + sender
+        return d_id
+
+    def db_dialogs_send(self, sender, recipient, message):
+        result={}
+        result["errors"]=[]    
+        if not self._dbconnected:
+            result["status"] = False
+            result["errors"].append("DB not conneted")
+            return result
+        try:
+            uuid_valid = UUID(sender, version=4)
+            uuid_valid = UUID(recipient, version=4)
+        except ValueError:
+            result["status"] = False
+            result["errors"].append("Incorect user id format")
+            return result
+        
+        formated_q = {
+            "d_id": self.gen_dialogid(sender,recipient),
+            "sender": sender,
+            "recepient": recipient,
+            "msgtext": message,
+            "msgtime": int(time.time())
+        }
+        self.cursor.execute("insert into dialogs (dialogid, sender, recepient, msgtext, msgtime) VALUES (%(d_id)s,%(sender)s,%(recepient)s,%(msgtext)s,%(msgtime)s);",formated_q)
+        result["status"] = True
+        result["dialogid"] = formated_q["d_id"]
+        return result      
+    
+    def db_dialogs_list(self, sender, recipient):
+        result={}
+        result["errors"]=[]    
+        if not self._dbconnected:
+            result["status"] = False
+            result["errors"].append("DB not conneted")
+            return result
+        try:
+            uuid_valid = UUID(sender, version=4)
+            uuid_valid = UUID(recipient, version=4)
+        except ValueError:
+            result["status"] = False
+            result["errors"].append("Incorect id format")
+            return result
+        formated_q = {
+            "dialogid": self.gen_dialogid(sender,recipient),
+        }
+        self.cursor.execute("select sender, recepient, msgtext, msgtime from dialogs where dialogid = %(dialogid)s order by msgtime desc;",formated_q)
+        dialoglist = self.cursor.fetchall()
+        reslst=[]
+        if len(dialoglist) > 0:
+            for tmsg in dialoglist:
+                reslst.append({
+                    "from": tmsg[0],
+                    "to": tmsg[1],
+                    "in": datetime.fromtimestamp(tmsg[3]).strftime("%H:%M:%S %d.%m.%Y"),
+                    "text": tmsg[2]
+                })
+        elif len(dialoglist) == 0:
+            result["status"] = False
+            result["errors"].append("Post not found")
+            return result
+        
+        result["status"] = True
+        result["dialog_content"] = reslst
+        return result

@@ -1,6 +1,6 @@
 {
 	"info": {
-		"_postman_id": "",
+		"_postman_id": "d90fb4b6-df20-4161-b47f-fb57c6ac676b",
 		"name": "OtusHA",
 		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
 	},
@@ -15,12 +15,12 @@
 					"urlencoded": [
 						{
 							"key": "id",
-							"value": "",
+							"value": "c0260448-5897-4355-bd21-0fa7a9913859",
 							"type": "default"
 						},
 						{
 							"key": "password",
-							"value": "",
+							"value": "P@$sw0rd",
 							"type": "default"
 						}
 					],
@@ -394,6 +394,73 @@
 							"key": "limit",
 							"value": "50"
 						}
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "/dialog/{user_id}/send",
+			"request": {
+				"auth": {
+					"type": "bearer",
+					"bearer": [
+						{
+							"key": "token",
+							"value": "1",
+							"type": "string"
+						}
+					]
+				},
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "raw",
+					"raw": "{\r\n    \"text\": \"Очень жаль\"\r\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "{{proto}}{{host}}/dialog/c0260448-5897-4355-bd21-0fa7a9913859/send",
+					"host": [
+						"{{proto}}{{host}}"
+					],
+					"path": [
+						"dialog",
+						"c0260448-5897-4355-bd21-0fa7a9913859",
+						"send"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "/dialog/{user_id}/list",
+			"request": {
+				"auth": {
+					"type": "bearer",
+					"bearer": [
+						{
+							"key": "token",
+							"value": "1",
+							"type": "string"
+						}
+					]
+				},
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{proto}}{{host}}/dialog/c0260448-5897-4355-bd21-0fa7a9913859/list",
+					"host": [
+						"{{proto}}{{host}}"
+					],
+					"path": [
+						"dialog",
+						"c0260448-5897-4355-bd21-0fa7a9913859",
+						"list"
 					]
 				}
 			},

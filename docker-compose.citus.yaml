@@ -1,0 +1,145 @@
+services:
+  postgres:
+    container_name: postgres_container
+    image: postgres:15.3
+    command:
+      - "postgres"
+      - "-c"
+      - "shared_preload_libraries=pg_stat_statements"
+      - "-c"
+      - "pg_stat_statements.max=10000"
+      - "-c"
+      - "pg_stat_statements.track=all"
+    environment:
+      POSTGRES_DB: "SocialOtus"
+      POSTGRES_USER: "otuspg"
+      POSTGRES_PASSWORD: "learn4otus"
+      PGDATA: "/var/lib/postgresql/data/pgdata"
+    volumes:
+      - ./db/initsql:/docker-entrypoint-initdb.d
+      - ./db:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U otuspg -d SocialOtus"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 4G
+    networks:
+      - otuslab
+
+  pgadmin:
+    container_name: pgadmin_container
+    image: dpage/pgadmin4:7.2
+    environment:
+      PGADMIN_DEFAULT_EMAIL: "no@mail.loc"
+      PGADMIN_DEFAULT_PASSWORD: "pgadmin4otus"
+      PGADMIN_CONFIG_SERVER_MODE: "False"
+    volumes:
+      - ./db/pgadmin:/var/lib/pgadmin
+    ports:
+      - "5050:80"
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 1G
+    networks:
+      - otuslab
+
+  labapp:
+    container_name: otuslab_social
+    build: .
+    ports: 
+      - "80:8080"
+    environment:
+      APP_M_DBHOST: 'postgres'
+      APP_M_DBPORT: 5432
+      APP_M_DBNAME: 'SocialOtus'
+      APP_M_DBUSER: 'otuspg'
+      APP_M_DBPWD: 'learn4otus'
+      APP_M_CHOST: 'tl_cache'
+      APP_M_CPORT: 3301
+      APP_M_CUSER: 'otuspg'
+      APP_M_CPWD: 'learn4otus'
+      APP_M_SHARDDB: 'citus_master'
+      APP_M_SHARDPORT: 5432
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - otuslab
+
+  tarantool_cache:
+    container_name: tl_cache
+    image: tarantool/tarantool:2.10.8
+    command: tarantool /usr/local/share/tarantool/cache.init.lua
+    volumes:
+      - ./db/tarantool_app:/usr/local/share/tarantool
+      - ./db/tarantool_cache/lib:/var/lib/tarantool
+      - ./db/tarantool_cache/log:/var/log/tarantool
+    networks:
+      - otuslab
+    ports:
+      - "3301:3301"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  citus_master:
+    container_name: "hacitus_master"
+    image: "citusdata/citus:12.1.0"
+    ports: ["5433:5432"]
+    labels: ["com.citusdata.role=Master"]
+    environment: &AUTH
+      POSTGRES_USER: "otuspg"
+      POSTGRES_PASSWORD: "learn4otus"
+      POSTGRES_DB: "SocialOtus"
+      PGUSER: "otuspg"
+      PGPASSWORD: "learn4otus"
+      POSTGRES_HOST_AUTH_METHOD: "trust"
+      CITUS_HOST: "citus_master"
+    volumes:
+      - ./db/citus/initm:/docker-entrypoint-initdb.d
+      - ./db/citus/master:/var/lib/postgresql/data
+    networks:
+      - otuslab
+
+  citus_w:
+    image: "citusdata/citus:12.1.0"
+    labels: ["com.citusdata.role=Worker"]
+    depends_on: [citus_mgr]
+    environment: *AUTH
+    command: "/wait-for-manager.sh"
+    volumes:
+      - healthcheck-volume:/healthcheck
+      - ./db/citus/initw:/docker-entrypoint-initdb.d
+      #- ./db/citus/worker1:/var/lib/postgresql/data
+    networks:
+      - otuslab
+
+  citus_mgr:
+    container_name: "hacitus_manager"
+    image: "citusdata/membership-manager:0.3.0"
+    volumes:
+      - "${DOCKER_SOCK:-/var/run/docker.sock}:/var/run/docker.sock"
+      - healthcheck-volume:/healthcheck
+    depends_on: [citus_master]
+    environment: *AUTH
+    networks:
+      - otuslab
+
+networks:
+  otuslab:
+    driver: bridge
+    
+volumes:
+  healthcheck-volume:
