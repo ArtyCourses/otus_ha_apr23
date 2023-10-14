@@ -9,12 +9,12 @@ RUN pip install fastapi
 RUN pip install uvicorn[standard]
 RUN pip install psycopg2
 RUN pip install python-multipart
+RUN pip install tarantool
+RUN pip install pika
 
-COPY ./src /opt/app
+COPY SocialMain.py /opt/app/SocialMain.py
+COPY SocialDB.py /opt/app/SocialDB.py
+COPY SocialModels.py /opt/app/SocialModels.py
 
 EXPOSE 8080
 CMD ["python","SocialMain.py"]
-ENV APP_DBHOST postgres_container
-ENV APP_DBNAME SocialOtus
-ENV APP_DBUSER otuspg
-ENV APP_DBPWD learn4otus

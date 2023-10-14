@@ -1,10 +1,11 @@
 import psycopg2
 import json
 from uuid import uuid4, UUID
-from datetime import datetime,timedelta #,timezone,timedelta
+from datetime import datetime,timedelta #, timezone #,timedelta
 import time
 import hashlib
 import tarantool
+import pika
 
 class SocialDB:
     "DB class for OTUS Laerning project Social"
@@ -20,12 +21,16 @@ class SocialDB:
     _dbconnected = False
     _cacheconnected = False
     _connection = None
+    _qhost = None
+    _qport = None
+    _quser = None
+    _qpwd = None
     cursor = None
     cache = None
     cache_posts = None
     cache_feeds = None
 
-    def __init__(self, dbhost, dbport, dbuser, dbpassword, dbname, cachehost, cacheport, cacheuser, chachepwd):
+    def __init__(self, dbhost, dbport, dbuser, dbpassword, dbname, cachehost, cacheport, cacheuser, chachepwd,qhost,qport,quser,qpwd):
         self._pghost = dbhost
         self._pgport = dbport
         self._db = dbname
@@ -35,6 +40,10 @@ class SocialDB:
         self._cport = cacheport
         self._cuser = cacheuser
         self._cpwd = chachepwd
+        self._qhost = qhost
+        self._qport = qport
+        self._quser = quser
+        self._qpwd = qpwd
 
     def __del__(self):
         if self._dbconnected or self._cacheconnected:
@@ -299,7 +308,6 @@ class SocialDB:
         except ValueError:
             result["status"] = False
             result["errors"].append("Incorect session format")
-            print(ses_id)
             return result
         
         self.cursor.execute("select id, userid, started, expired from sessions where id = %(id)s;",{'id':ses_id})
@@ -412,13 +420,30 @@ class SocialDB:
         result["status"] = True
         result["postid"] = formated_q["p_id"]
 
-        #add post to followers feed
+        #add post to followers
         self.cursor.execute("select userid from friendships where friendid = %(u_id)s;",{"u_id":selfid})
         updfeed = self.cursor.fetchall()
         if len(updfeed) > 0:
+            qsocial = SocialQueue(
+                qhost = self._qhost,
+                qport = self._qport,
+                quser = self._quser,
+                qpassword = self._qpwd
+            )
+            qsocial.connect()
+            post={
+                "id": formated_q["p_id"],
+                "text": formated_q["post"],
+                "author_user_id": formated_q["u_id"],
+                "created": datetime.fromtimestamp(formated_q["p_date"] - time.timezone).strftime("%H:%M:%S %d.%m.%Y")
+            }
+            print(F"timezone offset: {time.timezone}")
             for follower in updfeed:
-                self.cache.call('add_postfeed',(follower,formated_q["p_id"]))
-
+                #add to feed cache    
+                self.cache.call('add_postfeed',(follower[0],formated_q["p_id"]))
+                #add to existing websocket
+                qsocial.addpost2feed(follower[0],post)
+            qsocial.disconnect()
         return result      
         
     def db_posts_read(self,postid):
@@ -668,4 +693,84 @@ class ShardDB:
         
         result["status"] = True
         result["dialog_content"] = reslst
+        return result
+    
+
+class SocialQueue:
+    _host = None
+    _port = None
+    _exchange = None
+    _exchangetype = None
+    _user = None
+    _password = None
+    _connected = False
+    uqprefix = "feed-"
+    connection = None
+    channel = None
+
+    def __init__(self, qhost, quser, qpassword, qport = 5672, qexchange = 'postedfeed', qextype = 'topic'):
+        self._host = qhost
+        self._port = qport
+        self._user = quser
+        self._password = qpassword
+        self._exchange = qexchange
+        self._exchangetype = qextype
+
+    def __del__(self):
+        if self._connected:
+            self.connection.close()
+
+    def connect(self):
+        if self._connected:
+            return
+        rabcreds = pika.PlainCredentials(username=self._user,password=self._password)
+        self.connection = pika.BlockingConnection(pika.ConnectionParameters(host=self._host,port=self._port,credentials=rabcreds))
+        #self.connection = pika.SelectConnection(pika.ConnectionParameters(host=self._host,port=self._port,credentials=rabcreds))
+        self.channel = self.connection.channel()
+        self.channel.exchange_declare(self._exchange,self._exchangetype,False,True,False)
+        self.connected = True
+
+    def disconnect(self):
+        if not self._connected:
+            return
+        self.channel.close()    
+        self.connection.close()
+        self._connected = False
+
+    def create_userqueue(self,userid):
+        result={}
+        result["errors"]=[]    
+        if not self.connected:
+            result["status"] = False
+            result["errors"].append("rabbitmq not conneted")
+            return result
+        qname = F"{self.uqprefix}{userid}"
+        self.channel.queue_declare(queue=qname,durable=True)
+        self.channel.queue_bind(queue=qname,exchange=self._exchange,routing_key=userid)
+        result["status"] = True
+        result["queue"] = qname
+        return result
+    
+    def delete_userqueue(self,userid):
+        result={}
+        result["errors"]=[]    
+        if not self.connected:
+            result["status"] = False
+            result["errors"].append("rabbitmq not conneted")
+            return result
+        qname = F"{self.uqprefix}{userid}"
+        self.channel.queue_unbind(queue=qname,exchange=self._exchange,routing_key=userid)
+        self.channel.queue_delete(queue=qname)
+        result["status"] = True
+        return result
+    
+    def addpost2feed(self, userid, post):
+        result={}
+        result["errors"]=[]    
+        if not self.connected:
+            result["status"] = False
+            result["errors"].append("rabbitmq not conneted")
+            return result
+        self.channel.basic_publish(exchange=self._exchange,routing_key=userid,body=json.dumps(post))
+        result["status"] = True
         return result

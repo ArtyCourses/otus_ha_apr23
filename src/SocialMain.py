@@ -6,15 +6,21 @@ import uvicorn
 import json
 import os
 import argparse
+import asyncio
 
-from fastapi import Form, FastAPI, Request, status, HTTPException
-from fastapi.responses import JSONResponse
+from fastapi import Form, FastAPI, Request, status, HTTPException, WebSocket, Cookie, Depends, WebSocketException, WebSocketDisconnect
+from fastapi.responses import JSONResponse, HTMLResponse
+from websockets import exceptions as webexcept
 
 from SocialDB import SocialDB
 from SocialDB import ShardDB
 from SocialModels import UserLogin
 from SocialModels import UserRegister
 from SocialModels import UserSearch
+from SocialDB import SocialQueue
+
+import time
+from random import randint
 
 
 db_master = SocialDB(
@@ -26,7 +32,11 @@ db_master = SocialDB(
     cachehost = os.environ["APP_M_CHOST"],
     cacheport = os.environ["APP_M_CPORT"],
     cacheuser = os.environ["APP_M_CUSER"],
-    chachepwd = os.environ["APP_M_CPWD"]
+    chachepwd = os.environ["APP_M_CPWD"],
+    qhost = os.environ["QUEUE_HOST"],
+    qport = os.environ["QUEUE_PORT"],
+    quser = os.environ["QUEUE_USER"],
+    qpwd = os.environ["QUEUE_PWD"]
     )
 db_master.connect()
 
@@ -39,7 +49,7 @@ db_shard = ShardDB(
 )
 db_shard.connect()
 
-app = fastapi.FastAPI()
+app = FastAPI()
 
 @app.get("/")
 def read_root():
@@ -270,6 +280,56 @@ async def get_dialog_list(userid, request: Request):
             return JSONResponse(status_code=401, content={"ERROR":auth["errors"]})
     else:
         return JSONResponse(status_code=401, content={"ERROR":"Not authorized"})
+
+async def ws_auth(ws:WebSocket, userid: str|None = Cookie(default=None)):
+    shead = ws.headers
+    if "Authorization" in shead:
+        session = shead['Authorization']
+        auth = db_master.db_check_session(session)
+        if auth["status"]:
+            ws.cookies["userid"] = auth["userid"]
+            return auth["userid"]
+        else:
+            if userid is None:
+                raise WebSocketException(code=status.WS_1008_POLICY_VIOLATION)
+            else:
+                return userid
+
+@app.websocket("/post/feed/posted")
+async def feed_posted(socws:WebSocket,chsession: str = Depends(ws_auth)):
+    await socws.accept()
+    print(F"connected {chsession}")
+    qsocial = SocialQueue(os.environ["QUEUE_HOST"],os.environ["QUEUE_USER"],os.environ["QUEUE_PWD"],)
+    qsocial.connect()
+    userq = qsocial.create_userqueue(chsession)
+    qname = userq['queue']
+    try:
+        while True:
+            frun = True
+            while frun:
+                msg_method, msg_header, msg_body = qsocial.channel.basic_get(qname)
+                if msg_method:
+                    msg = json.loads(msg_body)
+                    await socws.send_json(msg)
+                    qsocial.channel.basic_ack(msg_method.delivery_tag)
+                else:
+                    frun = False
+            #workaround to check if client disconnected without sending new post
+            # + asyncio.sleep(1) alter
+            try:
+                await asyncio.wait_for(
+                    socws.receive_text(), 1#0.0001
+                )
+            except asyncio.TimeoutError:
+                pass
+            await asyncio.sleep(4)
+    except webexcept.ConnectionClosed:
+        print(F"disconnected {chsession}")
+    except WebSocketDisconnect:
+        print(F"disconnected {chsession}")
+    finally:
+        qsocial.delete_userqueue(chsession)
+        qsocial.disconnect()
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Otus course HA Arch', prog='SocialTest')
