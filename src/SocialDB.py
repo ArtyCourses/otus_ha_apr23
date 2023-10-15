@@ -651,14 +651,14 @@ class ShardDB:
             "sender": sender,
             "recepient": recipient,
             "msgtext": message,
-            "msgtime": int(time.time())
+            "msgtime": time.time()
         }
         self.cursor.execute("insert into dialogs (dialogid, sender, recepient, msgtext, msgtime) VALUES (%(d_id)s,%(sender)s,%(recepient)s,%(msgtext)s,%(msgtime)s);",formated_q)
         result["status"] = True
         result["dialogid"] = formated_q["d_id"]
         return result      
     
-    def db_dialogs_list(self, sender, recipient):
+    def db_dialogs_list(self, sender, recipient, limit = 50):
         result={}
         result["errors"]=[]    
         if not self._dbconnected:
@@ -674,8 +674,9 @@ class ShardDB:
             return result
         formated_q = {
             "dialogid": self.gen_dialogid(sender,recipient),
+            "lim": limit
         }
-        self.cursor.execute("select sender, recepient, msgtext, msgtime from dialogs where dialogid = %(dialogid)s order by msgtime desc;",formated_q)
+        self.cursor.execute("select sender, recepient, msgtext, msgtime from dialogs where dialogid = %(dialogid)s order by msgtime desc limit %(lim)s;",formated_q)
         dialoglist = self.cursor.fetchall()
         reslst=[]
         if len(dialoglist) > 0:
@@ -683,7 +684,7 @@ class ShardDB:
                 reslst.append({
                     "from": tmsg[0],
                     "to": tmsg[1],
-                    "in": datetime.fromtimestamp(tmsg[3]).strftime("%H:%M:%S %d.%m.%Y"),
+                    "at": datetime.fromtimestamp(tmsg[3]).strftime("%H:%M:%S %d.%m.%Y"),
                     "text": tmsg[2]
                 })
         elif len(dialoglist) == 0:
@@ -695,6 +696,89 @@ class ShardDB:
         result["dialog_content"] = reslst
         return result
     
+class MemoryDB:
+    host = None
+    port = None
+    user = None
+    pwd = None
+    db = None
+    _dbconnected = False
+
+    def __init__(self, dbhost, dbport, dbuser, dbpassword):
+        self.host = dbhost
+        self.port = dbport
+        self.user = dbuser
+        self.pwd = dbpassword
+
+    def __del__(self):
+        if self._dbconnected:
+            self.disconnect()
+
+    def connect(self):
+        if self._dbconnected:
+            return
+        if not self._dbconnected:
+            self.db = tarantool.connect(
+                host = self.host, 
+                port = self.port, 
+                user = self.user,
+                password = self.pwd
+                )
+            self._dbconnected = True
+
+    def disconnect(self):
+        if not self._dbconnected:
+            return
+        self.db.close()
+
+    def db_dialogs_send(self, sender, recipient, message):
+        result={}
+        result["errors"]=[]    
+        if not self._dbconnected:
+            result["status"] = False
+            result["errors"].append("DB not conneted")
+            return result
+        try:
+            uuid_valid = UUID(sender, version=4)
+            uuid_valid = UUID(recipient, version=4)
+        except ValueError:
+            result["status"] = False
+            result["errors"].append("Incorect user id format")
+            return result
+        did = self.db.call('dialogs_add',(sender,recipient,message,time.time()))[0]
+        result["status"] = True
+        result["dialogid"] = did
+        return result      
+    
+    def db_dialogs_list(self, sender, recipient, msglimit = 50):
+        result={}
+        result["errors"]=[]    
+        if not self._dbconnected:
+            result["status"] = False
+            result["errors"].append("DB not conneted")
+            return result
+        try:
+            uuid_valid = UUID(sender, version=4)
+            uuid_valid = UUID(recipient, version=4)
+        except ValueError:
+            result["status"] = False
+            result["errors"].append("Incorect id format")
+            return result
+        dialoglist = self.db.call('dialogs_getlist',(sender,recipient,msglimit))[0]
+        reslst=[]
+        if len(dialoglist) > 0:
+            for telem in dialoglist:
+                tpost = json.loads(telem)
+                tpost['at'] = datetime.fromtimestamp(float(tpost['at'])).strftime("%H:%M:%S %d.%m.%Y")
+                reslst.append(tpost)
+        elif len(dialoglist) == 0:
+            result["status"] = False
+            result["errors"].append("Post not found")
+            return result
+        result["status"] = True
+        result["dialog_content"] = reslst
+        return result
+     
 
 class SocialQueue:
     _host = None

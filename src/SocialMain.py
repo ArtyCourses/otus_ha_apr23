@@ -14,6 +14,7 @@ from websockets import exceptions as webexcept
 
 from SocialDB import SocialDB
 from SocialDB import ShardDB
+from SocialDB import MemoryDB
 from SocialModels import UserLogin
 from SocialModels import UserRegister
 from SocialModels import UserSearch
@@ -40,6 +41,7 @@ db_master = SocialDB(
     )
 db_master.connect()
 
+''' Шардированная СУБД подсистемы диалогов
 db_shard = ShardDB(
     dbhost = os.environ["APP_M_SHARDDB"],
     dbport = os.environ["APP_M_SHARDPORT"],
@@ -48,6 +50,16 @@ db_shard = ShardDB(
     dbname = os.environ["APP_M_DBNAME"],
 )
 db_shard.connect()
+#'''
+#''' in-memory СУБД подсистемы диалогов
+db_shard = MemoryDB(
+    dbhost = os.environ["IMDB_HOST"],
+    dbport = os.environ["IMDB_PORT"],
+    dbuser = os.environ["IMDB_USER"],
+    dbpassword = os.environ["IMDB_PWD"],
+)
+db_shard.connect()
+#'''
 
 app = FastAPI()
 
