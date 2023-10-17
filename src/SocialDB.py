@@ -297,12 +297,13 @@ class SocialDB:
             result["errors"].append("DB not conneted")
             return result
         #check
-        ses_id = sessionid.split(' ')[1]
+        
         b_type = sessionid.split(' ')[0]
         if b_type != 'Bearer':
             result["status"] = False
             result["errors"].append("Incorect auth type")
             return result
+        ses_id = sessionid.split(' ')[1]
         try:
             uuid_valid = UUID(ses_id, version=4)
         except ValueError:
@@ -689,7 +690,7 @@ class ShardDB:
                 })
         elif len(dialoglist) == 0:
             result["status"] = False
-            result["errors"].append("Post not found")
+            result["errors"].append("Dialog not found")
             return result
         
         result["status"] = True

@@ -1,0 +1,124 @@
+{
+	"openapi": "3.0.2",
+	"info": {
+		"title": "FastAPI",
+		"version": "0.1.0"
+	},
+	"paths": {
+		"/v2/dialogs/{userid}": {
+			"get": {
+				"description": "Получить диалог запросившего пользователя с пользователем userid",
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": [
+					{
+						"required": true,
+						"schema": {
+							"type": "string",
+							"description": "Идентификатор пользователя"
+						},
+						"name": "userid",
+						"in": "path"
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "Диалог между двумя пользователями",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "array",
+									"items": {
+										"$ref": "#/components/schemas/DialogMessage"
+									}
+								}
+							}
+						}
+					},
+					"400": {
+						"$ref": "#/components/responses/400"
+					},
+					"401": {
+						"$ref": "#/components/responses/401"
+					}
+				}
+			},
+			"post": {
+				"description": "Отправить сообщение пользователю userid",
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": [
+					{
+						"required": true,
+						"schema": {
+							"type": "string",
+							"description": "Идентификатор пользователя"
+						},
+						"name": "userid",
+						"in": "path"
+					}
+				],
+				"responses": {
+					"201": {
+						"description": "Сообщение отправлено",
+						"content": {
+							"text": {
+								"type": "string",
+								"description": "Идентификатор диалога между пользователями",
+								"example": "1d535fd6-7521-4cb1-aa6d-031be7123c4d-1d535fd6-7521-4cb1-aa6d-031be7123c4d"
+							}
+						}
+					},
+					"400": {
+						"$ref": "#/components/responses/400"
+					},
+					"401": {
+						"$ref": "#/components/responses/401"
+					}
+				}
+			}
+		}
+	},
+	"components": {
+		"responses": {
+			"400": {
+				"content": {
+					"application/json": {
+						"type": "object",
+						"required": [
+							"ERROR"
+						],
+						"properties": {
+							"ERROR": {
+								"type": "string",
+								"description": "Некорректный запрос, сообщение с расшифровкой ошибки запроса"
+							}
+						}
+					}
+				}
+			},
+			"401": {
+				"content": {
+					"application/json": {
+						"type": "object",
+						"required": [
+							"ERROR"
+						],
+						"properties": {
+							"ERROR": {
+								"type": "string",
+								"description": "Не авторизована, сообщение с расшифровкой ошибки авторизации"
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+}

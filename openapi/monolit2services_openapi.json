@@ -1,0 +1,136 @@
+{
+	"openapi": "3.0.2",
+	"info": {
+		"title": "OtusSocialLab",
+		"version": "0.9.0"
+	},
+	"paths": {
+		"/sessioncheck": {
+			"post": {
+				"description": "Endpoint для проверки авторизационного токена пользователя сервисами вынесенными из монолита",
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"requestBody": {
+					"content": {
+						"application/json": {
+							"schema": {
+								"type": "object",
+								"required": [
+									"session"
+								],
+								"properties": {
+									"session": {
+										"$ref": "#/components/schemas/UserSession"
+									}
+								}
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "Проверка токена успешна",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/AuthResponse"
+								}
+							}
+						}
+					},
+					"400": {
+						"description": "Ошибка некорректного запроса, либо формат не JSON, либо отсутвует обязательный ключ 'session'",
+						"content": {
+							"application/json": {
+								"type": "object",
+								"required": [
+									"ERROR"
+								],
+								"properties": {
+									"ERROR": "Invalid checksession format"
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "Ошибка проверки сессии",
+						"content": {
+							"$ref": "#/components/responses/401"
+						}
+					},
+					"403": {
+						"description": "Ошибка в доступе отказано",
+						"content": {
+							"$ref": "#/components/responses/403"
+						}
+					}
+				}
+			}
+		}
+	},
+	"components": {
+		"responses": {
+			"401": {
+				"content": {
+					"application/json": {
+						"type": "object",
+						"required": [
+							"ERROR"
+						],
+						"properties": {
+							"ERROR": {
+								"type": "string",
+								"description": "Сообщение с расшифровкой ошибки"
+							}
+						}
+					}
+				}
+			},
+			"403": {
+				"content": {
+					"application/json": {
+						"type": "object",
+						"required": [
+							"ERROR"
+						],
+						"properties": {
+							"ERROR": {
+								"type": "string",
+								"description": "Сообщение с расшифровкой ошибки"
+							}
+						}
+					}
+				}
+			}
+		},
+		"schemas": {
+			"UserSession": {
+				"type": "string",
+				"description": "Идентификатор сессии пользователя",
+				"example": "1d535fd6-7521-4cb1-aa6d-031be7123c4d"
+			},
+			"AuthResponse": {
+				"type": "object",
+				"required": [
+					"status",
+					"userid"
+				],
+				"properties": {
+					"status": {
+						"type": "boolean",
+						"description": "Флаг статуса проверки сессии, true - при успешной проверке",
+						"example": "True"
+					},
+					"userid": {
+						"type": "string",
+						"description": "Идентификатор пользователя, чья сессия была проверена",
+						"example": "1d535fd6-7521-4cb1-aa6d-031be7123c4d"
+					}
+				}
+			}
+		}
+	}
+}

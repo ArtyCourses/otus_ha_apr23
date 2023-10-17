@@ -11,10 +11,13 @@ RUN pip install psycopg2
 RUN pip install python-multipart
 RUN pip install tarantool
 RUN pip install pika
+RUN pip install httpx
+RUN pip install asgi-correlation-id
 
-COPY SocialMain.py /opt/app/SocialMain.py
 COPY SocialDB.py /opt/app/SocialDB.py
 COPY SocialModels.py /opt/app/SocialModels.py
+COPY SocialMain.py /opt/app/SocialMain.py
+COPY SocialDialogs.py /opt/app/SocialDialogs.py
 
 EXPOSE 8080
 CMD ["python","SocialMain.py"]

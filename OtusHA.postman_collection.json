@@ -195,7 +195,7 @@
 					"bearer": [
 						{
 							"key": "token",
-							"value": "5cdf0e50-e107-482a-98a3-c1054cb39f5c",
+							"value": "1",
 							"type": "string"
 						}
 					]
@@ -237,7 +237,7 @@
 				"header": [],
 				"body": {
 					"mode": "raw",
-					"raw": "{\r\n    \"text\": \"Изначальный пост Абрамовой Вероники\"\r\n}",
+					"raw": "{\r\n    \"text\": \"Новый пост Худякова Юлия №63\"\r\n}",
 					"options": {
 						"raw": {
 							"language": "json"
@@ -336,14 +336,7 @@
 			"name": "/post/get",
 			"request": {
 				"auth": {
-					"type": "bearer",
-					"bearer": [
-						{
-							"key": "token",
-							"value": "1",
-							"type": "string"
-						}
-					]
+					"type": "noauth"
 				},
 				"method": "GET",
 				"header": [],
@@ -400,6 +393,35 @@
 			"response": []
 		},
 		{
+			"name": "/dialog/{user_id}/list",
+			"request": {
+				"auth": {
+					"type": "bearer",
+					"bearer": [
+						{
+							"key": "token",
+							"value": "1",
+							"type": "string"
+						}
+					]
+				},
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{proto}}{{host}}/dialog/9bb27cbb-74d6-40a8-86f3-1c8347695559/list",
+					"host": [
+						"{{proto}}{{host}}"
+					],
+					"path": [
+						"dialog",
+						"9bb27cbb-74d6-40a8-86f3-1c8347695559",
+						"list"
+					]
+				}
+			},
+			"response": []
+		},
+		{
 			"name": "/dialog/{user_id}/send",
 			"request": {
 				"auth": {
@@ -424,13 +446,13 @@
 					}
 				},
 				"url": {
-					"raw": "{{proto}}{{host}}/dialog/c0260448-5897-4355-bd21-0fa7a9913859/send",
+					"raw": "{{proto}}{{host}}/dialog/9bb27cbb-74d6-40a8-86f3-1c8347695559/send",
 					"host": [
 						"{{proto}}{{host}}"
 					],
 					"path": [
 						"dialog",
-						"c0260448-5897-4355-bd21-0fa7a9913859",
+						"9bb27cbb-74d6-40a8-86f3-1c8347695559",
 						"send"
 					]
 				}
@@ -438,7 +460,7 @@
 			"response": []
 		},
 		{
-			"name": "/dialog/{user_id}/list",
+			"name": "/v2/dialogs/{user_id}",
 			"request": {
 				"auth": {
 					"type": "bearer",
@@ -453,14 +475,54 @@
 				"method": "GET",
 				"header": [],
 				"url": {
-					"raw": "{{proto}}{{host}}/dialog/c0260448-5897-4355-bd21-0fa7a9913859/list",
+					"raw": "{{proto}}{{host}}:8080/v2/dialogs/9bb27cbb-74d6-40a8-86f3-1c8347695559",
 					"host": [
 						"{{proto}}{{host}}"
 					],
+					"port": "8080",
 					"path": [
-						"dialog",
-						"c0260448-5897-4355-bd21-0fa7a9913859",
-						"list"
+						"v2",
+						"dialogs",
+						"9bb27cbb-74d6-40a8-86f3-1c8347695559"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "/v2/dialogs/{user_id}",
+			"request": {
+				"auth": {
+					"type": "bearer",
+					"bearer": [
+						{
+							"key": "token",
+							"value": "1",
+							"type": "string"
+						}
+					]
+				},
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "raw",
+					"raw": "{\r\n    \"text\": \"Очень жаль\"\r\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "{{proto}}{{host}}:8080/v2/dialogs/9bb27cbb-74d6-40a8-86f3-1c8347695559",
+					"host": [
+						"{{proto}}{{host}}"
+					],
+					"port": "8080",
+					"path": [
+						"v2",
+						"dialogs",
+						"9bb27cbb-74d6-40a8-86f3-1c8347695559"
 					]
 				}
 			},
