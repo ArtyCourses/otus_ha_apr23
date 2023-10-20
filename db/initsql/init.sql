@@ -1,5 +1,8 @@
 BEGIN;
 
+create user haproxycheck with password 'haproxycheck';
+create role replicator with login replication password 'pass';
+
 CREATE TABLE IF NOT EXISTS public.sessions
 (
     id uuid NOT NULL,
@@ -30,7 +33,7 @@ CREATE TABLE IF NOT EXISTS public.posts
     id uuid NOT NULL,
 	author_userid uuid NOT NULL,
     content text COLLATE pg_catalog."default",
-    post_date timestamp without time zone,
+    post_date int8 NULL,
     CONSTRAINT posts_pkey PRIMARY KEY (id),
     CONSTRAINT fk_users_to_posts FOREIGN KEY (author_userid)
         REFERENCES public.users (id) MATCH SIMPLE

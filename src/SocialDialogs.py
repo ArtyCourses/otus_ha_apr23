@@ -3,6 +3,7 @@
 import uvicorn
 import json
 import os
+import socket
 import argparse
 
 from fastapi import FastAPI, Request, Response, status, APIRouter
@@ -25,6 +26,10 @@ class TimedRoute(APIRoute):
         original_route_handler = super().get_route_handler()
         async def custom_route_handler(request: Request) -> Response:
             before = time.time()
+            if "HTTP_X_FORWARDED_FOR" in request.META:
+                request.META["HTTP_X_PROXY_REMOTE_ADDR"] = request.META["REMOTE_ADDR"]
+                parts = request.META["HTTP_X_FORWARDED_FOR"].split(",", 1)
+                request.META["REMOTE_ADDR"] = parts[0]
             req = request.scope
             lmsg = F"pre-route\t{req['client'][0]}:{req['client'][1]} '{request.method} {req['path']} {req['scheme'].upper()}/{req['http_version']}'" 
             logger.info(lmsg)
@@ -35,6 +40,7 @@ class TimedRoute(APIRoute):
             logger.info(lmsg)
             return response
         return custom_route_handler
+
 
 #var from env
 MainAppURI = os.environ["MAINAPP_URI"]
@@ -245,5 +251,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
     svc_port = args.port
     svc_loglevel = args.loglevel
-    uvicorn.run("SocialDialogs:app", host="0.0.0.0", port=svc_port, log_level=svc_loglevel)
+    selfip = socket.gethostbyname(socket.gethostname())
+    print(F"Actual IP Addr: {selfip}")
+    uvicorn.run("SocialDialogs:app", host=selfip, port=svc_port, log_level=svc_loglevel)
 

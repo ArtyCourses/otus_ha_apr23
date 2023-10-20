@@ -82,6 +82,36 @@ class SocialDB:
         self.cursor.close()
         self._connection.close()
 
+    def reconnect(self):
+        if not self._dbconnected:
+            return
+        try:
+            self.cursor.execute('SELECT 1')
+        except psycopg2.OperationalError:
+            self._connection = psycopg2.connect(
+                host = self._pghost,
+                port = self._pgport,
+                user = self._user,
+                password = self._password,
+                database = self._db#,
+                #async_ = True,
+            )
+            self._connection.set_session(autocommit = True)
+            self._dbconnected = True
+            self.cursor = self._connection.cursor()
+        except psycopg2.InterfaceError:
+            self._connection = psycopg2.connect(
+                host = self._pghost,
+                port = self._pgport,
+                user = self._user,
+                password = self._password,
+                database = self._db#,
+                #async_ = True,
+            )
+            self._connection.set_session(autocommit = True)
+            self._dbconnected = True
+            self.cursor = self._connection.cursor()
+
     def db_registeruser(self,userdata):
         result={}
         result["errors"]=[]
@@ -134,6 +164,7 @@ class SocialDB:
         }
 
         #insert
+        self.reconnect()
         self.cursor.execute("insert into Users (id,login,pwd,registred) VALUES (%(id)s,%(login)s,%(password)s,to_timestamp(%(registred)s));",formated_user)
         self.cursor.execute("insert into usersdata (userid, name, surname, sex, birthdate, biography, city) values (%(id)s,%(first_name)s,%(second_name)s,%(sex)s, to_date(%(birthdate)s,'DD.MM.YYYY'),%(biography)s,%(city)s);",formated_userdata)
 
@@ -158,7 +189,7 @@ class SocialDB:
             result["status"] = False
             result["errors"].append("Incorect login format")
             return result
-
+        self.reconnect()
         self.cursor.execute("select id, login, pwd, registred from users where id = %(id)s;",{'id':login})
         tuser = self.cursor.fetchall()
         if len(tuser) == 1:
@@ -209,6 +240,7 @@ class SocialDB:
             "started": str(ses_st),
             "expired": ses_exp
         }
+        self.reconnect()
         self.cursor.execute("insert into sessions (id, userid, started, expired) VALUES (%(id)s,%(userid)s,to_timestamp(%(started)s),to_timestamp(%(expired)s));",formated_session)
         result["status"] = True
         result["token_id"] = ses_id
@@ -221,7 +253,6 @@ class SocialDB:
             result["status"] = False
             result["errors"].append("DB not conneted")
             return result
-
         #check
         try:
             uuid_valid = UUID(login, version=4)
@@ -229,7 +260,7 @@ class SocialDB:
             result["status"] = False
             result["errors"].append("Incorect login format")
             return result
-
+        self.reconnect()
         self.cursor.execute("select name, surname, birthdate, city, sex, biography from usersdata where userid = %(id)s;",{'id':login})
         uinfo = self.cursor.fetchall()
         if len(uinfo) == 1:
@@ -266,6 +297,7 @@ class SocialDB:
             "fsurname": find_sname+"%",
         }
 
+        self.reconnect()
         self.cursor.execute("select userid, name, surname, sex, birthdate, biography, city from usersdata where name LIKE %(fname)s and surname LIKE %(fsurname)s order by userid;",formated_query)
         fusers = self.cursor.fetchall()
         if len(fusers) == 0:
@@ -310,7 +342,7 @@ class SocialDB:
             result["status"] = False
             result["errors"].append("Incorect session format")
             return result
-        
+        self.reconnect()
         self.cursor.execute("select id, userid, started, expired from sessions where id = %(id)s;",{'id':ses_id})
         sesinfo = self.cursor.fetchall()
         if len(sesinfo) == 1:
@@ -351,6 +383,7 @@ class SocialDB:
             "u_id": selfid,
             "f_id": friendid
         }
+        self.reconnect()
         self.cursor.execute("select * from friendships where userid = %(u_id)s and friendid = %(f_id)s",formated_q)
         chf = self.cursor.fetchall()
         if len(chf) == 0:
@@ -382,6 +415,7 @@ class SocialDB:
             "u_id": selfid,
             "f_id": friendid
         }
+        self.reconnect()
         self.cursor.execute("select * from friendships where userid = %(u_id)s and friendid = %(f_id)s",formated_q)
         chf = self.cursor.fetchall()
         if len(chf) == 1:
@@ -416,7 +450,7 @@ class SocialDB:
             "post": posttext,
             "p_date": int(time.time())
         }
-        #self.cursor.execute("insert into posts (id, author_userid, content, post_date) VALUES (%(p_id)s,%(u_id)s,%(post)s,to_timestamp(%(p_date)s));",formated_q)
+        self.reconnect()
         self.cursor.execute("insert into posts (id, author_userid, content, post_date) VALUES (%(p_id)s,%(u_id)s,%(post)s,%(p_date)s);",formated_q)
         result["status"] = True
         result["postid"] = formated_q["p_id"]
@@ -463,6 +497,7 @@ class SocialDB:
         formated_q = {
             "p_id": postid,
         }
+        self.reconnect()
         self.cursor.execute("select id, author_userid, content, post_date from posts where id = %(p_id)s;",formated_q)
         ch_post = self.cursor.fetchall()
         if len(ch_post) == 1:
@@ -502,6 +537,7 @@ class SocialDB:
             "u_id": selfid,
             "post": posttext
         }
+        self.reconnect()
         self.cursor.execute("select author_userid from posts where id = %(p_id)s;",{"p_id": postid})
         ch_post = self.cursor.fetchall()
         if len(ch_post) == 1:
@@ -541,6 +577,7 @@ class SocialDB:
         formated_q = {
             "p_id": postid,
         }
+        self.reconnect()
         self.cursor.execute("select id from posts where id = %(p_id)s;",formated_q)
         сh_post = self.cursor.fetchall()
         if len(сh_post) == 1:

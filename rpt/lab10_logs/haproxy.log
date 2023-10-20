@@ -1,0 +1,14 @@
+[NOTICE]   (1) : haproxy version is 2.8.3-86e043a
+[NOTICE]   (1) : path to executable is /usr/local/sbin/haproxy
+[WARNING]  (1) : config : parsing [/usr/local/etc/haproxy/haproxy.cfg:11]: 'log-format' overrides previous 'option tcplog' in 'defaults' section.
+[NOTICE]   (1) : New worker (8) forked
+[NOTICE]   (1) : Loading success.
+[WARNING]  (8) : Server pgReadOnly/postgres.node3 is DOWN, reason: Layer4 timeout, check duration: 3004ms. 2 active and 0 backup servers left. 0 sessions active, 0 requeued, 0 remaining in queue.
+[WARNING]  (8) : Server pgReadOnly/postgres.node3 is UP, reason: Layer7 check passed, code: 0, info: "PostgreSQL server is ok", check duration: 5ms. 3 active and 0 backup servers online. 0 sessions requeued, 0 total in queue.
+hapostgres[8][20/Oct/2023:11:39:02.048]pgReadOnly ->172.20.0.13:44004 postgres.node2 1/0/+0 +0 -- 1/1/1/1/0 0/0
+hapostgres[8][20/Oct/2023:11:39:06.177]pgReadOnly ->172.20.0.9:37616 postgres.node3 1/0/+0 +0 -- 2/2/2/1/0 0/0
+hapostgres[8][20/Oct/2023:11:39:40.990]pgReadOnly ->172.20.0.9:38514 postgres.node4 1/0/+0 +0 -- 2/2/2/1/0 0/0
+Server pgReadOnly/postgres.node3 is DOWN, reason: Layer4 timeout, check duration: 3004ms. 2 active and 0 backup servers left. 0 sessions active, 0 requeued, 0 remaining in queue.
+Server pgReadOnly/postgres.node3 is UP, reason: Layer7 check passed, code: 0, info: "PostgreSQL server is ok", check duration: 5ms. 3 active and 0 backup servers online. 0 sessions requeued, 0 total in queue.
+hapostgres[8][20/Oct/2023:11:40:27.953]pgReadOnly ->172.20.0.9:39536 postgres.node2 1/0/+0 +0 -- 2/2/2/2/0 0/0
+hapostgres[8][20/Oct/2023:11:40:28.017]pgReadOnly ->172.20.0.9:39548 postgres.node4 1/0/+0 +0 -- 3/3/3/1/0 0/0

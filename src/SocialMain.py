@@ -8,6 +8,7 @@ import os
 import argparse
 import asyncio
 import httpx
+import socket
 
 from fastapi import FastAPI, Request, Response, status, APIRouter, HTTPException, WebSocket, Cookie, Depends, WebSocketException, WebSocketDisconnect
 from fastapi.responses import JSONResponse, HTMLResponse
@@ -50,6 +51,24 @@ db_master = SocialDB(
     )
 db_master.connect()
 
+db_reader = SocialDB(
+    dbhost = os.environ["APP_R_DBHOST"],
+    dbport = os.environ["APP_R_DBPORT"],
+    dbuser = os.environ["APP_R_DBUSER"],
+    dbpassword = os.environ["APP_R_DBPWD"],
+    dbname = os.environ["APP_M_DBNAME"],
+    cachehost = os.environ["APP_M_CHOST"],
+    cacheport = os.environ["APP_M_CPORT"],
+    cacheuser = os.environ["APP_M_CUSER"],
+    chachepwd = os.environ["APP_M_CPWD"],
+    qhost = os.environ["QUEUE_HOST"],
+    qport = os.environ["QUEUE_PORT"],
+    quser = os.environ["QUEUE_USER"],
+    qpwd = os.environ["QUEUE_PWD"]
+    )
+db_reader.connect()
+
+
 ''' Шардированная СУБД подсистемы диалогов
 db_dialogs = ShardDB(
     dbhost = os.environ["APP_M_SHARDDB"],
@@ -78,6 +97,7 @@ class TimedRoute(APIRoute):
         async def custom_route_handler(request: Request) -> Response:
             before = time.time()
             req = request.scope
+            print(req)
             lmsg = F"pre-route\t{req['client'][0]}:{req['client'][1]} '{request.method} {req['path']} {req['scheme'].upper()}/{req['http_version']}'" 
             logger.info(lmsg)
             response: Response = await original_route_handler(request)
@@ -87,6 +107,7 @@ class TimedRoute(APIRoute):
             logger.info(lmsg)
             return response
         return custom_route_handler
+
 
 from logging.config import dictConfig
 def configure_logging() -> None:
@@ -139,6 +160,9 @@ app.add_middleware(
     validator=None,
     transformer=lambda a: a,
 )
+app.include_router(router)
+
+
 
 @app.on_event("startup")
 async def startup_event():
@@ -211,7 +235,8 @@ async def post_register(request: Request):
 @app.get("/user/get/{userid}")
 def get_userinfo(userid):
     #UserData = db_slave.db_getuser(userid)
-    UserData = db_master.db_getuser(userid)
+    UserData = db_reader.db_getuser(userid)
+    #UserData = db_master.db_getuser(userid)
     if UserData["status"]:
         return UserData["UserInfo"]
     else:
@@ -504,8 +529,6 @@ async def feed_posted(socws:WebSocket,chsession: str = Depends(ws_auth)):
         qsocial.delete_userqueue(chsession)
         qsocial.disconnect()
 
-app.include_router(router)
-
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Otus course HA Arch', prog='SocialTest')
     parser.add_argument('--port','-p', dest='port', metavar='P', type=int, help='Service port', default=8080, required=False)
@@ -513,5 +536,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
     svc_port = args.port
     svc_loglevel = args.loglevel
-    uvicorn.run("SocialMain:app", host="0.0.0.0", port=svc_port, log_level=svc_loglevel)
+    selfip = socket.gethostbyname(socket.gethostname())
+    print(F"Actual IP Addr: {selfip}")
+    uvicorn.run("SocialMain:app", host=selfip, port=svc_port, log_level=svc_loglevel)
 
