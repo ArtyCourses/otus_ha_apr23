@@ -1,0 +1,390 @@
+services:
+  #postgres section
+  postgres: #write master
+    container_name: postgres_container
+    image: postgres:15.3
+    command:
+      - "postgres"
+      - "-c"
+      - "shared_preload_libraries=pg_stat_statements"
+      - "-c"
+      - "pg_stat_statements.max=10000"
+      - "-c"
+      - "pg_stat_statements.track=all"
+    environment:
+      POSTGRES_DB: "SocialOtus"
+      POSTGRES_USER: "otuspg"
+      POSTGRES_PASSWORD: "learn4otus"
+      PGDATA: "/var/lib/postgresql/data/pgdata"
+    volumes:
+      - ./db/initsql:/docker-entrypoint-initdb.d
+      - ./db/pg/node1:/var/lib/postgresql/data/pgdata
+      #- ./db/pg:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U otuspg -d SocialOtus"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 4G
+    networks:
+      - otuslab
+
+  postgres.node2:
+    container_name: postgres.node2
+    image: postgres:15.3
+    command:
+      - "postgres"
+      - "-c"
+      - "shared_preload_libraries=pg_stat_statements"
+      - "-c"
+      - "pg_stat_statements.max=10000"
+      - "-c"
+      - "pg_stat_statements.track=all"
+    environment:
+      POSTGRES_DB: "SocialOtus"
+      POSTGRES_USER: "otuspg"
+      POSTGRES_PASSWORD: "learn4otus"
+      PGDATA: "/var/lib/postgresql/data/pgdata"
+    volumes:
+      - ./db/initsql:/docker-entrypoint-initdb.d
+      - ./db/pg/node2:/var/lib/postgresql/data/pgdata
+    #ports:
+    #  - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U otuspg -d SocialOtus"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 4G
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - otuslab
+
+  postgres.node3:
+    container_name: postgres.node3
+    image: postgres:15.3
+    command:
+      - "postgres"
+      - "-c"
+      - "shared_preload_libraries=pg_stat_statements"
+      - "-c"
+      - "pg_stat_statements.max=10000"
+      - "-c"
+      - "pg_stat_statements.track=all"
+    environment:
+      POSTGRES_DB: "SocialOtus"
+      POSTGRES_USER: "otuspg"
+      POSTGRES_PASSWORD: "learn4otus"
+      PGDATA: "/var/lib/postgresql/data/pgdata"
+    volumes:
+      - ./db/initsql:/docker-entrypoint-initdb.d
+      - ./db/pg/node3:/var/lib/postgresql/data/pgdata
+    #ports:
+    #  - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U otuspg -d SocialOtus"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 4G
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - otuslab
+
+  postgres.node4:
+    container_name: postgres.node4
+    image: postgres:15.3
+    command:
+      - "postgres"
+      - "-c"
+      - "shared_preload_libraries=pg_stat_statements"
+      - "-c"
+      - "pg_stat_statements.max=10000"
+      - "-c"
+      - "pg_stat_statements.track=all"
+    environment:
+      POSTGRES_DB: "SocialOtus"
+      POSTGRES_USER: "otuspg"
+      POSTGRES_PASSWORD: "learn4otus"
+      PGDATA: "/var/lib/postgresql/data/pgdata"
+    volumes:
+      - ./db/initsql:/docker-entrypoint-initdb.d
+      - ./db/pg/node4:/var/lib/postgresql/data/pgdata
+    #ports:
+    #  - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U otuspg -d SocialOtus"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 4G
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - otuslab
+
+  hapostgres:
+    container_name: hapostgres
+    hostname: hapostgres
+    image: haproxy:2.8.3
+    volumes:
+      - ./db/lb/pgharpoxy:/usr/local/etc/haproxy
+    networks:
+      - otuslab
+    ports: 
+      - "5435:5432"
+      - "7000:7000"
+    
+
+  #app section
+  labapp.node1:
+    container_name: otuslab_social.node1
+    build: .
+    #ports: 
+    #  - "80:8080"
+    environment:
+      APP_M_DBHOST: 'postgres'
+      APP_M_DBPORT: 5432
+      APP_M_DBNAME: 'SocialOtus'
+      APP_M_DBUSER: 'otuspg'
+      APP_M_DBPWD: 'learn4otus'
+      APP_R_DBHOST: 'hapostgres'
+      APP_R_DBPORT: 5432
+      APP_R_DBNAME: 'SocialOtus'
+      APP_R_DBUSER: 'otuspg'
+      APP_R_DBPWD: 'learn4otus'
+      APP_M_CHOST: 'tl_cache'
+      APP_M_CPORT: 3301
+      APP_M_CUSER: 'otuspg'
+      APP_M_CPWD: 'learn4otus'
+      APP_M_SHARDDB: 'citus_master'
+      APP_M_SHARDPORT: 5432
+      QUEUE_HOST: 'rabbitn1'
+      QUEUE_PORT: 5672
+      QUEUE_USER: 'otuspg'
+      QUEUE_PWD: 'learn4otus'
+      IMDB_HOST: 'tlmemorydb'
+      IMDB_PORT: 3305
+      IMDB_USER: 'otuspg'
+      IMDB_PWD: 'learn4otus'
+      SVC_AUTH_KEY: 'SecretServiceKey'
+      SVC_DIALOGS: 'http://otuslab_dialogs:8080/v2/dialogs/'
+    deploy:
+      resources:
+        limits:
+          cpus: '0.75'
+          memory: 4G
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - otuslab
+
+  labapp.node2:
+    container_name: otuslab_social.node2
+    build: .
+    #ports: 
+    #  - "80:8080"
+    environment:
+      APP_M_DBHOST: 'postgres'
+      APP_M_DBPORT: 5432
+      APP_M_DBNAME: 'SocialOtus'
+      APP_M_DBUSER: 'otuspg'
+      APP_M_DBPWD: 'learn4otus'
+      APP_R_DBHOST: 'hapostgres'
+      APP_R_DBPORT: 5432
+      APP_R_DBNAME: 'SocialOtus'
+      APP_R_DBUSER: 'otuspg'
+      APP_R_DBPWD: 'learn4otus'
+      APP_M_CHOST: 'tl_cache'
+      APP_M_CPORT: 3301
+      APP_M_CUSER: 'otuspg'
+      APP_M_CPWD: 'learn4otus'
+      APP_M_SHARDDB: 'citus_master'
+      APP_M_SHARDPORT: 5432
+      QUEUE_HOST: 'rabbitn1'
+      QUEUE_PORT: 5672
+      QUEUE_USER: 'otuspg'
+      QUEUE_PWD: 'learn4otus'
+      IMDB_HOST: 'tlmemorydb'
+      IMDB_PORT: 3305
+      IMDB_USER: 'otuspg'
+      IMDB_PWD: 'learn4otus'
+      SVC_AUTH_KEY: 'SecretServiceKey'
+      SVC_DIALOGS: 'http://otuslab_dialogs:8080/v2/dialogs/'
+    deploy:
+      resources:
+        limits:
+          cpus: '0.75'
+          memory: 4G
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - otuslab
+
+  labapp:
+    container_name: otuslab
+    hostname: otuslab
+    image: nginx:1.25.2
+    volumes:
+      - "./db/lb/appnginx:/etc/nginx/conf.d"
+      #- "./db/lb/logs/nginx:/var/log/nginx"
+    ports:
+      - "80:80"
+      - "7070:7070"
+    networks:
+      - otuslab
+
+  labdialogs:
+    container_name: otuslab_dialogs
+    build: .
+    ports: 
+      - "8080:8080"
+    environment:
+      IMDB_HOST: 'tlmemorydb'
+      IMDB_PORT: 3305
+      IMDB_USER: 'otuspg'
+      IMDB_PWD: 'learn4otus'
+      MAINAPP_URI: 'http://otuslab:80'
+      SVC_AUTH_KEY: 'SecretServiceKey'
+      MA_SESSIONAPI: '/sessioncheck'
+      COUNTERS_URI: 'http://otuslab_counters:8080/counters'
+    entrypoint: ["python","SocialDialogs.py"]
+    networks:
+      - otuslab
+  
+  labcounters:
+    container_name: otuslab_counters
+    build: .
+    ports: 
+      - "8090:8080"
+    environment:
+      IMDB_HOST: 'tlmemorydb'
+      IMDB_PORT: 3305
+      IMDB_USER: 'otuspg'
+      IMDB_PWD: 'learn4otus'
+      RODB_HOST: 'tlmemorydb'
+      RODB_PORT: 3305
+      RODB_USER: 'otuspg'
+      RODB_PWD: 'learn4otus'
+      MAINAPP_URI: 'http://otuslab:80'
+      SVC_AUTH_KEY: 'SecretServiceKey'
+      MA_SESSIONAPI: '/sessioncheck'
+    entrypoint: ["python","SocialCounter.py"]
+    networks:
+      - otuslab
+      
+  #adv db section
+  tarantool_cache:
+    container_name: tl_cache
+    image: tarantool/tarantool:2.10.8
+    command: tarantool /usr/local/share/tarantool/cache.init.lua
+    volumes:
+      - ./db/tarantool_app:/usr/local/share/tarantool
+      - ./db/tarantool_cache/lib:/var/lib/tarantool
+      - ./db/tarantool_cache/log:/var/log/tarantool
+    networks:
+      - otuslab
+    ports:
+      - "3301:3301"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  rabbitn1:
+    container_name: "rabbit.node1"
+    image: rabbitmq:3.10-management
+    hostname: "rabbit.node1"
+    ports:
+      - "15672:15672"
+      - "5672:5672"
+    environment:
+      RABBITMQ_ERLANG_COOKIE: 'SocialOtusQueue'
+      RABBITMQ_DEFAULT_USER: 'otuspg'
+      RABBITMQ_DEFAULT_PASS: 'learn4otus'
+      RABBITMQ_USE_LONGNAME: true
+      RABBITMQ_SERVER_ADDITIONAL_ERL_ARGS: "-rabbit disk_free_limit 536870912"
+    volumes:
+      - ./db/rabbitmq/wrk/node1:/var/lib/rabbitmq
+      - ./db/rabbitmq/cfg:/etc/rabbitmq/conf.d
+    networks:
+      - otuslab
+
+  rabbitn2:
+    container_name: "rabbit.node2"
+    image: rabbitmq:3.10-management
+    hostname: "rabbit.node2"
+    ports:
+      - "15673:15672"
+    environment:
+      RABBITMQ_ERLANG_COOKIE: 'SocialOtusQueue'
+      RABBITMQ_DEFAULT_USER: 'otuspg'
+      RABBITMQ_DEFAULT_PASS: 'learn4otus'
+      RABBITMQ_USE_LONGNAME: true
+      RABBITMQ_SERVER_ADDITIONAL_ERL_ARGS: "-rabbit disk_free_limit 536870912"
+    volumes:
+      - ./db/rabbitmq/wrk/node2:/var/lib/rabbitmq
+      - ./db/rabbitmq/cfg:/etc/rabbitmq/conf.d
+    networks:
+      - otuslab
+
+  tarantooldb:
+    container_name: tlmemorydb
+    hostname: tarantooldb
+    image: tarantool/tarantool:2.10.8
+    command: tarantool /usr/local/share/tarantool/inmemorydb.init.lua
+    volumes:
+      - ./db/tarantool_db/cfg:/usr/local/share/tarantool
+      - ./db/tarantool_db/data/node1/lib:/var/lib/tarantool
+      - ./db/tarantool_db/data/node1/log:/var/log/tarantool
+    networks:
+      - otuslab
+    ports:
+      - "3305:3305"
+
+  tarantoolui:
+    container_name: tarantoolui
+    image: quay.io/basis-company/tarantool-admin
+    networks:
+      - otuslab
+    ports:
+      - "8000:80"
+      
+networks:
+  otuslab:
+    driver: bridge
+    
+volumes:
+  healthcheck-volume:

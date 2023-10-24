@@ -18,6 +18,7 @@ COPY SocialDB.py /opt/app/SocialDB.py
 COPY SocialModels.py /opt/app/SocialModels.py
 COPY SocialMain.py /opt/app/SocialMain.py
 COPY SocialDialogs.py /opt/app/SocialDialogs.py
+COPY SocialCounter.py /opt/app/SocialCounter.py
 
 EXPOSE 8080
 CMD ["python","SocialMain.py"]

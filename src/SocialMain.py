@@ -174,7 +174,7 @@ logger = logging.getLogger('app')
 def read_root():
     return JSONResponse(status_code=403, content={"INFO":"Forbidden"})
 
-@router.post("/sessioncheck", status_code=200)
+@app.post("/sessioncheck", status_code=200)
 async def svc_checksession(request: Request):
     logger.info(F"call 'checksession'")
     headers = request.headers

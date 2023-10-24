@@ -788,7 +788,7 @@ class MemoryDB:
         result["dialogid"] = did
         return result      
     
-    def db_dialogs_list(self, sender, recipient, msglimit = 50):
+    def db_dialogs_list(self, sender, recipient, msglimit = 50, msgoffset = 0):
         result={}
         result["errors"]=[]    
         if not self._dbconnected:
@@ -802,7 +802,7 @@ class MemoryDB:
             result["status"] = False
             result["errors"].append("Incorect id format")
             return result
-        dialoglist = self.db.call('dialogs_getlist',(sender,recipient,msglimit))[0]
+        dialoglist = self.db.call('dialogs_getlist',(sender,recipient,msglimit, msgoffset))[0]
         reslst=[]
         if len(dialoglist) > 0:
             for telem in dialoglist:
@@ -811,13 +811,175 @@ class MemoryDB:
                 reslst.append(tpost)
         elif len(dialoglist) == 0:
             result["status"] = False
-            result["errors"].append("Post not found")
+            result["errors"].append("Dialog message not found")
             return result
         result["status"] = True
         result["dialog_content"] = reslst
         return result
      
 
+class CounterDB:
+    host = None
+    port = None
+    user = None
+    pwd = None
+    db = None
+    _dbconnected = False
+
+    def __init__(self, dbhost, dbport, dbuser, dbpassword):
+        self.host = dbhost
+        self.port = dbport
+        self.user = dbuser
+        self.pwd = dbpassword
+
+    def __del__(self):
+        if self._dbconnected:
+            self.disconnect()
+
+    def connect(self):
+        if self._dbconnected:
+            return
+        if not self._dbconnected:
+            self.db = tarantool.connect(
+                host = self.host, 
+                port = self.port, 
+                user = self.user,
+                password = self.pwd
+                )
+            self._dbconnected = True
+
+    def disconnect(self):
+        if not self._dbconnected:
+            return
+        self.db.close()
+
+    def create_counter(self, sender, recipient):
+        result={}
+        result["errors"]=[]    
+        if not self._dbconnected:
+            result["status"] = False
+            result["errors"].append("DB not conneted")
+            return result
+        try:
+            uuid_valid = UUID(sender, version=4)
+            uuid_valid = UUID(recipient, version=4)
+        except ValueError:
+            result["status"] = False
+            result["errors"].append("Incorect user id format")
+            return result
+        new_count = self.db.call('get_counter',(sender,recipient))[0]
+        if not new_count is None:
+            result["status"] = True
+            result["count"] = new_count
+            return result
+        else:
+            result["status"] = True
+            result["errors"].append("Null pointer return of counter function")
+            return result  
+ 
+    def get_counter(self, sender, recipient):
+        result={}
+        result["errors"]=[]    
+        if not self._dbconnected:
+            result["status"] = False
+            result["errors"].append("DB not conneted")
+            return result
+        try:
+            uuid_valid = UUID(sender, version=4)
+            uuid_valid = UUID(recipient, version=4)
+        except ValueError:
+            result["status"] = False
+            result["errors"].append("Incorect user id format")
+            return result
+        new_count = self.db.call('get_counter',(sender,recipient))[0]
+        if not new_count is None:
+            result["status"] = True
+            result["count"] = new_count
+            return result
+        else:
+            result["status"] = True
+            result["errors"].append("Null pointer return of counter function")
+            return result
+    
+    def inc_counter(self, sender, recipient, count):
+        result={}
+        result["errors"]=[]    
+        if not self._dbconnected:
+            result["status"] = False
+            result["errors"].append("DB not conneted")
+            return result
+        try:
+            uuid_valid = UUID(sender, version=4)
+            uuid_valid = UUID(recipient, version=4)
+        except ValueError:
+            result["status"] = False
+            result["errors"].append("Incorect user id format")
+            return result
+        new_count = self.db.call('counters_increment',(sender,recipient,int(count)))[0]
+        if not new_count is None:
+            result["status"] = True
+            result["count"] = new_count
+            return result
+        else:
+            result["status"] = True
+            result["errors"].append("Null pointer return of counter function")
+            return result
+    
+    def dec_counter(self, sender, recipient, count):
+        result={}
+        result["errors"]=[]    
+        if not self._dbconnected:
+            result["status"] = False
+            result["errors"].append("DB not conneted")
+            return result
+        try:
+            uuid_valid = UUID(sender, version=4)
+            uuid_valid = UUID(recipient, version=4)
+        except ValueError:
+            result["status"] = False
+            result["errors"].append("Incorect user id format")
+            return result
+        new_count = self.db.call('counters_decrement',(sender,recipient,int(count)))[0]
+        if not new_count is None:
+            result["status"] = True
+            result["count"] = new_count
+            return result
+        else:
+            result["status"] = True
+            result["errors"].append("Null pointer return of counter function")
+            return result
+
+    def get_user_counters(self, userid):
+        result={}
+        result["errors"]=[]    
+        if not self._dbconnected:
+            result["status"] = False
+            result["errors"].append("DB not conneted")
+            return result
+        try:
+            uuid_valid = UUID(userid, version=4)
+        except ValueError:
+            result["status"] = False
+            result["errors"].append("Incorect user id format")
+            return result
+        counters = self.db.call('get_user_counters',(userid))[0]
+        if not counters is None:
+            lst_counter = {}
+            for tcount in counters:
+                jcount = json.loads(tcount)
+                lst_counter[jcount['dialogid']] = jcount['unread']
+            allunread = 0
+            for tek_cnt in lst_counter:
+                allunread += lst_counter[tek_cnt]
+            lst_counter['summary'] = allunread
+            result["status"] = True
+            result["counters"] = lst_counter
+            return result
+        else:
+            result["status"] = True
+            result["errors"].append("Null pointer return of counter function")
+            return result
+    
 class SocialQueue:
     _host = None
     _port = None

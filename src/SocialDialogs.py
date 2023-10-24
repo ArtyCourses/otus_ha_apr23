@@ -26,10 +26,6 @@ class TimedRoute(APIRoute):
         original_route_handler = super().get_route_handler()
         async def custom_route_handler(request: Request) -> Response:
             before = time.time()
-            if "HTTP_X_FORWARDED_FOR" in request.META:
-                request.META["HTTP_X_PROXY_REMOTE_ADDR"] = request.META["REMOTE_ADDR"]
-                parts = request.META["HTTP_X_FORWARDED_FOR"].split(",", 1)
-                request.META["REMOTE_ADDR"] = parts[0]
             req = request.scope
             lmsg = F"pre-route\t{req['client'][0]}:{req['client'][1]} '{request.method} {req['path']} {req['scheme'].upper()}/{req['http_version']}'" 
             logger.info(lmsg)
@@ -46,6 +42,7 @@ class TimedRoute(APIRoute):
 MainAppURI = os.environ["MAINAPP_URI"]
 SvcAuthKey = os.environ["SVC_AUTH_KEY"]
 SessionAPI = os.environ["MA_SESSIONAPI"]
+CountersURI = os.environ["COUNTERS_URI"]
 
 #''' in-memory СУБД подсистемы диалогов
 db_dialogs = MemoryDB(
@@ -164,7 +161,7 @@ async def check_usersession(token):
     rdata = {
         "session": ses_id
     }
-    logger.info(F"call monolit to checksession")
+    logger.info(F"call monolit to checksession {rurl}")
     async with httpx.AsyncClient() as rses:
         request_auth = await rses.post(rurl, headers=rhead, json=rdata)
 
@@ -181,7 +178,6 @@ async def check_usersession(token):
         result["status"] = False
         result["errors"] = "samething goes wrong"
     return result
-
 
 @router.get("/")
 def read_root():
@@ -204,11 +200,29 @@ async def post_dialog_send(userid, request: Request):
         #auth = db_master.db_check_session(session)
         auth = await check_usersession(session)
         if auth["status"]:
+            logger.info(F"Incremet unread counter for {auth['userid']}")
+            CounterURI = F"{CountersURI}?sender={auth['userid']}&recipient={userid}&count=1"
+            svckey = base64.b64encode(bytes(SvcAuthKey, 'utf-8')).decode('utf-8')
+            rhead = {
+                "Authorization": "Bearer " + str(svckey)
+            }
+            async with httpx.AsyncClient() as rses:
+                req_counters = await rses.post(CounterURI, headers=rhead)
+            if req_counters.status_code != 202:
+                return JSONResponse(status_code=400, content={"Counters ERROR":req_counters["errors"]})
+            else:
+                cnt_changed = req_counters.json()['count']
             logger.info(F"call dialogs db function")
             fpost = db_dialogs.db_dialogs_send(auth["userid"], userid, content['text'])
             if fpost["status"]:
                 return fpost['dialogid']
             else:
+                logger.info(F"Revert counters on send errors")
+                CounterURI = F"{CountersURI}?sender={userid}&recipient={auth['userid']}&count={cnt_changed}"
+                async with httpx.AsyncClient() as rses:
+                    req_counters = await rses.delete(CounterURI, headers=rhead)
+                if req_counters.status_code != 200:
+                    logger.error(F"Failed restore counters value")
                 logger.error(F"400:\t{fpost['errors']}")
                 return JSONResponse(status_code=400, content={"ERROR":fpost["errors"]})
         else:
@@ -218,21 +232,71 @@ async def post_dialog_send(userid, request: Request):
         logger.error(F"401:\tNot authorized")
         return JSONResponse(status_code=401, content={"ERROR":"Not authorized"})
 
-
 @router.get("/v2/dialogs/{userid}", status_code=200)
 async def get_dialog_list(userid, request: Request):
     logger.info(F"call 'v2/dialogs/<userid> get dialog list")
     headers = request.headers
     raw_body = await request.body()
+    d_par = dict(request.query_params)
+    if 'limit' in d_par:
+        dlimit = int(d_par['limit'])
+    else:
+        dlimit = 50
+    if 'offset' in d_par:
+        doffset = int(d_par['offset'])
+    else:
+        doffset = 0
     if "Authorization" in headers:
         session = headers['Authorization']
         auth = await check_usersession(session)
         if auth["status"]:
+            logger.info(F"Get unread counter for {auth['userid']}")
+            svckey = base64.b64encode(bytes(SvcAuthKey, 'utf-8')).decode('utf-8')
+            rhead = {
+                "Authorization": "Bearer " + str(svckey)
+            }
+            CounterURI = F"{CountersURI}?sender={userid}&recipient={auth['userid']}"
+            async with httpx.AsyncClient() as rses:
+                req_counters = await rses.get(CounterURI, headers=rhead)
+            if req_counters.status_code != 200:
+                return JSONResponse(status_code=400, content={"Counters ERROR":req_counters["errors"]})
+            else:
+                current_unread = req_counters.json()['count']
+            if doffset > 0:
+                readed = current_unread - doffset
+                if readed < 0:
+                    readed = 0
+            else:
+                readed = dlimit
+            logger.info(F"Decremet unread counter for {auth['userid']}")
+            CounterURI = F"{CountersURI}?sender={auth['userid']}&recipient={userid}&count={readed}"
+            async with httpx.AsyncClient() as rses:
+                req_counters = await rses.delete(CounterURI, headers=rhead)
+            if req_counters.status_code != 200:
+                return JSONResponse(status_code=400, content={"ERROR":req_counters["errors"]})
+            else:
+                cnt_changed = req_counters.json()['count']
             logger.info(F"call dialogs db function")
-            fpost = db_dialogs.db_dialogs_list(auth["userid"], userid)
+            fpost = db_dialogs.db_dialogs_list(auth["userid"], userid,dlimit,doffset)
             if fpost["status"]:
+                logger.info(F"Ответ: {len(fpost['dialog_content'])} < {cnt_changed}")
+                if len(fpost['dialog_content']) < cnt_changed:
+                    logger.info(F"Compensation readed less then limit")
+                    revert = cnt_changed - len(fpost['dialog_content'])
+                    CounterURI = F"{CountersURI}?sender={auth['userid']}&recipient={userid}&count={revert}"
+                    async with httpx.AsyncClient() as rses:
+                        req_counters = await rses.post(CounterURI, headers=rhead)
+                    if req_counters.status_code != 202:
+                        return JSONResponse(status_code=400, content={"Counter ERROR":req_counters["errors"]})
                 return fpost['dialog_content']
             else:
+                if cnt_changed > 0:
+                    logger.info(F"Revert counters on get errors")
+                    CounterURI = F"{CountersURI}?sender={auth['userid']}&recipient={userid}&count={cnt_changed}"
+                    async with httpx.AsyncClient() as rses:
+                        req_counters = await rses.post(CounterURI, headers=rhead)
+                    if req_counters.status_code != 202:
+                        logger.error(F"Failed restore counters value")
                 logger.error(F"400:\t{fpost['errors']}")
                 return JSONResponse(status_code=400, content={"ERROR":fpost["errors"]})
         else:
